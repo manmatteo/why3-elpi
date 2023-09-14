@@ -1,0 +1,6 @@
+(executable
+ (name main)
+ (libraries why3 elpi)
+ (embed_in_plugin_libraries elpi elpi.trace.ppx elpi.trace.runtime elpi.parser ppxlib.ast ppxlib.astlib )
+ (flags -linkall)
+ (modes plugin))
