@@ -6,6 +6,7 @@ let types = ref [||]
 let declarations =
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInData in
+  let open Elpi.API.BuiltInPredicate in
   [
     MLCode
       ( Pred
@@ -45,30 +46,44 @@ let declarations =
  
 let handle_out _f (out : unit Elpi.API.Execute.outcome) =
   match out with
-  | Success(data) ->
+  | Elpi.API.Execute.Success(data) ->
     (* Elpi returns answers as a map from query variable names to terms *)
     (* We transform it into a map from names to strings *)
     let resp =
-      Elpi.API.Data.StrMap.map (fun term ->
+      let open Elpi.API.Data in
+      StrMap.map (fun term ->
           Elpi.API.Pp.term (data.pp_ctx) (Format.str_formatter) term;
           Format.flush_str_formatter ())
         data.assignments
     in
     Elpi.API.Data.StrMap.iter (fun var bind -> Format.printf "%s: %s" var bind) resp;
   | _ -> ()
-let query decl =
+
+let query (decl : Decl.decl) =
     let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi"
     (declarations @ Elpi.Builtin.std_declarations)] in
-    let elpi = (API.Setup.init ~builtins ()) in
-    let goal = Elpi.API.Parse.goal ~loc:(Elpi.API.Ast.Loc.initial "mlts") ~elpi ~text:"why_foo" in
-    let prog = Elpi.API.Compile.program [] ~elpi in
-    let goalc = Elpi.API.Compile.query prog goal in
-    let exec = Elpi.API.Compile.optimize goalc in
-    let () = Elpi.API.Execute.loop exec
-      ~more:(fun () -> true)
-      ~pp:handle_out
+    let elpi = (API.Setup.init ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
+    let loc = Elpi.API.Ast.Loc.initial "(elpi)" in
+    let ast = Elpi.API.Parse.program ~elpi ~files:["test.elpi"] in
+    let prog =
+      let flags = Elpi.API.Compile.default_flags in
+      ast |>
+      Elpi.API.Compile.unit ~flags ~elpi |>
+      (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
+    let parsed_query = Elpi.API.(Parse.goal ~elpi ~loc:(Ast.Loc.initial "") ~text:"why_foo.") in
+    let compiled_query = Elpi.API.Compile.query prog parsed_query in
+    if not (Elpi.API.Compile.static_check
+              ~checker:(Elpi.Builtin.default_checker ()) compiled_query) then
+      Loc.errorm "elpi: type error in file";
+  
+    let _ =
+    match Elpi.API.Execute.once (Elpi.API.Compile.optimize compiled_query) with
+    | Elpi.API.Execute.Success {
+        Elpi.API.Data.state; pp_ctx; constraints; output = (); _
+      } -> Format.printf "elpi: success\n%!"
+    | Failure -> Loc.errorm "elpi: failure"
+    | NoMoreSteps -> assert false
   in [decl]
-
 
 let elpi_trans = Trans.decl query None
 
