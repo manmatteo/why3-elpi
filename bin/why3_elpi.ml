@@ -25,8 +25,8 @@ let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
 let applc = Elpi.API.RawData.Constants.declare_global_symbol "appl"
 let notc = Elpi.API.RawData.Constants.declare_global_symbol "not"
 let lsymbc = Elpi.API.RawData.Constants.declare_global_symbol "lsymb"
-let falsec = Elpi.API.RawData.Constants.declare_global_symbol "tt"
-let truec = Elpi.API.RawData.Constants.declare_global_symbol "tf"
+let falsec = Elpi.API.RawData.Constants.declare_global_symbol "ff"
+let truec = Elpi.API.RawData.Constants.declare_global_symbol "tt"
 
 let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "symbol";
@@ -39,18 +39,14 @@ let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
 }
 
 let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
-  Format.printf "Embedding term %a...@." Pretty.print_term term;
-  let unsupported msg =
-  Loc.errorm "Term not supported:(%s)@." msg
+  let unsupported msg t =
+  Loc.errorm "Term not supported:(%s, %a)@." msg Pretty.print_term t
   in
   let open Elpi.API.RawData in
   match term.t_node with
-  | Term.Tvar _ 
-  -> unsupported "var"
-  | Term.Tconst _
-  -> unsupported "const"
-  | Term.Tapp (ls, args)
-  ->
+  | Term.Tvar _ -> unsupported "var" term
+  | Term.Tconst _ -> unsupported "const" term
+  | Term.Tapp (ls, args) ->
     let new_state, s, extra_goals = lsym.Elpi.API.Conversion.embed st ~depth ls in
     new_state, mkApp lsymbc s [], extra_goals
   | Term.Tif (_, _, _)
@@ -58,9 +54,9 @@ let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tcase (_, _)
   | Term.Teps _
   | Term.Tquant (_, _)
-  | Term.Ttrue
-  | Term.Tfalse
-  -> unsupported "term"
+  -> unsupported "term" term
+  | Term.Ttrue -> st, mkConst truec, []
+  | Term.Tfalse -> st, mkConst falsec, []
   | Term.Tnot t ->
     let st, tm, eg = embed_term ~depth st t in
     st, (mkApp notc tm []), eg
@@ -72,21 +68,40 @@ let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tand ->     st, (mkApp andc t1 [t2]), eg
   | Term.Tor ->      st, (mkApp orc  t1 [t2]), eg
   | Term.Timplies -> st, (mkApp impc t1 [t2]), eg
-  | Term.Tiff ->     unsupported "term"
+  | Term.Tiff ->     unsupported "iff" term
 
 let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   let unsupported msg =
-  Loc.errorm "Readback not supported:(%s)@." msg
+  Loc.errorm "Readback not supported:(%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
   match API.RawData.look ~depth tm with
-| API.RawData.Const _ -> unsupported "const"
-| API.RawData.Lam _ -> unsupported "lam"
-| API.RawData.App (_, _, _) -> unsupported "app"
-| API.RawData.Cons (_, _) -> unsupported "cons"
-| API.RawData.Nil -> unsupported "nil"
-| API.RawData.Builtin (_, _) -> unsupported "builtin"
-| API.RawData.CData _ -> unsupported "cdata"
-| API.RawData.UnifVar (_, _) -> unsupported "unifvar"
+  | API.RawData.Const c when c == truec -> st, Why3.Term.t_true, []
+  | API.RawData.Const c when c == falsec -> st, Why3.Term.t_false, []
+  | API.RawData.Const c when c == lsymbc -> unsupported "const"
+  | API.RawData.Const c -> unsupported "const %d"
+  | API.RawData.Lam _ -> unsupported "lam"
+  | API.RawData.App (c, t1, [t2]) when c = andc -> 
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
+    st,  Why3.Term.t_and tt1 tt2, eg1 @ eg2
+  | API.RawData.App (c, t1, [t2]) when c = orc ->
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
+    st,  Why3.Term.t_or tt1 tt2, eg1 @ eg2
+  | API.RawData.App (c, t1, [t2]) when c = impc ->
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
+    st,  Why3.Term.t_implies tt1 tt2, eg1 @ eg2
+  | API.RawData.App (c, t1, []) when c = lsymbc -> (* To fix for firstorder? *)
+    let st, ls, eg = lsym.readback ~depth st t1 in
+    st, Why3.Term.t_app_infer ls [], eg
+  | API.RawData.App (c, t1, tl) when c = applc -> unsupported "applc"
+  | API.RawData.App (c, t1, tl) -> unsupported "app"
+  | API.RawData.Cons (_, _) -> unsupported "cons"
+  | API.RawData.Nil -> unsupported "nil"
+  | API.RawData.Builtin (_, _) -> unsupported "builtin"
+  | API.RawData.CData _ -> unsupported "cdata"
+  | API.RawData.UnifVar (_, _) -> unsupported "unifvar"
 
 let term : Term.term API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "term";
@@ -173,16 +188,17 @@ let query (g : Decl.prsymbol) (t : Term.term) =
     (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
   let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(term,t,Q(term,"Output",N)))}) in
   if not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
-    then Loc.errorm "elpi: type error in file";
-  let _ =
+    then Loc.errorm "elpi: type error in file"
+  else
+  let out_tm =
   match Elpi.API.Execute.once (Elpi.API.Compile.optimize main_query) with
   | Elpi.API.Execute.Success {
       Elpi.API.Data.state; pp_ctx; constraints; output = (tm, ()); _
-    } -> Format.printf "elpi: success\n%!"
+    } -> Format.printf "elpi: success\n%!"; tm
   | Failure -> Loc.errorm "elpi: failure"
   | NoMoreSteps -> assert false
   in
-  [Decl.create_prop_decl Pgoal g t]
+  [Decl.create_prop_decl Pgoal g out_tm]
 
 
 let elpi_trans = Trans.goal query
