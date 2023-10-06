@@ -1,95 +1,193 @@
 open Why3
 open Elpi
 
-let types = ref [||]
-
-let handle_out _f (out : unit Elpi.API.Execute.outcome) =
-  match out with
-  | Elpi.API.Execute.Success(data) ->
-    (* Elpi returns answers as a map from query variable names to terms *)
-    (* We transform it into a map from names to strings *)
-    let resp =
-      let open Elpi.API.Data in
-      StrMap.map (fun term ->
-          Elpi.API.Pp.term (data.pp_ctx) (Format.str_formatter) term;
-          Format.flush_str_formatter ())
-        data.assignments
-    in
-    Elpi.API.Data.StrMap.iter (fun var bind -> Format.printf "%s: %s" var bind) resp;
-  | _ -> ()
-
-
+(* Constants for Why3 HOAS *)
 let andc = Elpi.API.RawData.Constants.declare_global_symbol "and"
 let orc = Elpi.API.RawData.Constants.declare_global_symbol "or"
 let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
+let allc = Elpi.API.RawData.Constants.declare_global_symbol "all"
+let existsc = Elpi.API.RawData.Constants.declare_global_symbol "ex"
 let applc = Elpi.API.RawData.Constants.declare_global_symbol "appl"
 let notc = Elpi.API.RawData.Constants.declare_global_symbol "not"
 let lsymbc = Elpi.API.RawData.Constants.declare_global_symbol "lsymb"
-let appc = Elpi.API.RawData.Constants.declare_global_symbol "app"
-let falsec = Elpi.API.RawData.Constants.declare_global_symbol "ff"
-let truec = Elpi.API.RawData.Constants.declare_global_symbol "tt"
+let strc = Elpi.API.RawData.Constants.declare_global_symbol "tstr"
+let intc = Elpi.API.RawData.Constants.declare_global_symbol "tint"
+let falsec = Elpi.API.RawData.Constants.declare_global_symbol "bot"
+let truec = Elpi.API.RawData.Constants.declare_global_symbol "top"
 let itec = Elpi.API.RawData.Constants.declare_global_symbol "ite"
+let tvarc = Elpi.API.RawData.Constants.declare_global_symbol "tvar"
+let tsymbc = Elpi.API.RawData.Constants.declare_global_symbol "tsymb"
+let tappc = Elpi.API.RawData.Constants.declare_global_symbol "tapp"
+
+let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "tyvsymbol";
+  doc = "Embedding of type variables";
+  pp = (fun _ _ -> ());
+  compare = Ty.tv_compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}
+let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "tysymbol";
+  doc = "Embedding of type symbols";
+  pp = Pretty.print_ts;
+  compare = Ty.ts_compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [("ts_int", Ty.ts_int ); ("ts_real", Ty.ts_real ); ("ts_bool", Ty.ts_bool ); ("ts_str", Ty.ts_str )];
+}
+
+let rec embed_ty : Why3.Ty.ty API.Conversion.embedding = fun ~depth st ty ->
+  let open Elpi.API.RawData in
+  match ty.ty_node with
+  | Ty.Tyapp (h, []) ->
+    let st, ts, eg = tysym.Elpi.API.Conversion.embed ~depth st h in
+    st, mkApp tsymbc ts [], eg
+  | Ty.Tyapp (h, l) ->
+    let st, ts, eg = tysym.Elpi.API.Conversion.embed ~depth st h in
+    let st, tl, egs = List.fold_right (fun arg (st, args, egs) ->
+      let st, tt, eg = embed_ty ~depth st arg in 
+      st, mkCons tt args, eg@egs
+    ) l (st,mkNil,[]) in
+    st, mkApp tappc ts [tl], eg
+  | Ty.Tyvar v ->
+    let st, vsymb, eg = tyvsym.embed ~depth st v in
+    st, mkApp tvarc vsymb [], eg
+
+(* This readback is defined in mutual recursion with the entire conversion *)
+let rec readback_ty : Ty.ty API.Conversion.readback = fun ~depth st tm ->
+  let unsupported msg =
+  Loc.errorm "Readback not supported for type: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
+  in
+  match (API.RawData.look ~depth tm) with
+  | API.RawData.Const c -> unsupported ""
+  | API.RawData.App (c, ts, []) when c = tsymbc -> 
+    let st, ts, eg = tysym.readback ~depth st ts in
+    st, Ty.ty_app ts [], eg
+  | API.RawData.App (c, ts, [tl]) when c = tappc  -> 
+    let st, ts, eg1 = tysym.readback ~depth st ts in
+    let st, args, eg2 = (API.BuiltInData.list ty).readback ~depth st tl in
+    st, Ty.ty_app ts args, eg1@eg2
+  | _ -> unsupported ""
+
+(* Embedding of types *)
+and ty : Ty.ty API.Conversion.t =
+   {
+  API.Conversion.ty = API.Conversion.TyName "ty";
+  pp = Pretty.print_ty;
+  pp_doc = (fun fmt () -> Format.fprintf fmt
+{|%% Embedding of types
+kind ty type.
+type tvar tyvsymbol -> ty.
+type tapp tysymbol -> list ty -> ty.
+type tsymb tysymbol -> ty.|});
+  readback = readback_ty;
+  embed = embed_ty;
+}
 
 let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "symbol";
-  doc = "lsymbol";
+  Elpi.API.OpaqueData.name = "lsymbol";
+  doc = "Embedding of predicate symbols";
   pp = Pretty.print_ls;
   compare = Term.ls_compare;
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
 }
+let vsym : Term.vsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "vsymbol";
+  doc = "Embedding of variable symbols";
+  pp = Pretty.print_vs;
+  compare = Term.vs_compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}
 
-let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
+let int : Number.int_constant API.Conversion.t = 
+let open Elpi.API.Conversion in {
+ty = TyName "int";
+pp = (fun _ _ -> ());
+pp_doc = (fun fmt () -> Format.fprintf fmt
+{|kind int type.|});
+readback = (fun ~depth st tm -> assert false);
+embed = (fun ~depth st tm -> assert false);
+}
+
+let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   let unsupported msg =
   Loc.errorm "Term not supported:(%s, %a)@." msg Pretty.print_term term
   in
   let open Elpi.API.RawData in
+  let open Term in
+  let rec aux ~depth st term (map : constant Mvs.t) =
   match term.t_node with
-  | Term.Tvar _ -> unsupported "var"
-  | Term.Tconst _ -> unsupported "const"
+  | Term.Tvar v -> st, mkBound @@ Mvs.find v map, []
+  | Term.Tconst c ->
+    begin match c with
+    | Constant.ConstInt n -> let st, tm, eg = API.BuiltInData.int.embed ~depth st (BigInt.to_int n.il_int) in st, mkApp intc tm [], eg
+    | Constant.ConstReal r -> unsupported "real"
+    | Constant.ConstStr s -> let st, tm, eg = API.BuiltInData.string.embed ~depth st s in st, mkApp strc tm [], eg
+    end
   | Term.Tapp (ls, []) -> (* single constant *)
     let st, lsy, extra_goals = lsym.Elpi.API.Conversion.embed st ~depth ls in
     st, mkApp lsymbc lsy [], extra_goals
   | Term.Tapp (ls, args) -> (* constant with arguments *)
     let st, lsy, extra_goals = lsym.Elpi.API.Conversion.embed st ~depth ls in
     let st, argslist, egs = List.fold_right (fun arg (st, args, egs) ->
-      let st, tt, eg = embed_term ~depth st arg in 
+      let st, tt, eg = aux ~depth st arg map in 
       st, tt::args, eg@egs
     ) args (st,[],[]) in
     let argslist = List.fold_right (fun arg acc ->
       mkCons arg acc
-      ) (mkApp lsymbc lsy []::argslist) mkNil in
-    st, mkApp appc argslist [], extra_goals
+      ) argslist mkNil in
+    st, mkApp applc lsy [argslist], extra_goals
   | Term.Tlet (_, _)
   -> unsupported "let binder"
   | Term.Tcase (_, _)
   -> unsupported "case"
   | Term.Teps _ -> unsupported "epsilon/function"
-  | Term.Tquant (q, t) ->
-    begin match q with
-    | Term.Tforall -> unsupported "forall"
-    | Term.Texists -> unsupported "forall"
+  | Term.Tquant (q, tq) ->
+    let (vlist,trigger,term) = Term.t_open_quant tq in
+    begin match trigger with
+    | (a::_) -> unsupported "Triggers not supported"
+    | [] -> 
+      let map,depth =
+        List.fold_right (fun var (map,depth) ->
+          (Mvs.add var depth map, depth + 1) )
+          vlist (map, depth) in
+      let embedded_body = (aux ~depth st term map) in
+      let build_binders quant =
+        List.fold_right (fun var (st, tm, eg) ->
+          let st, ty_term, eg1 = ty.embed ~depth st var.vs_ty in
+          st, mkApp quant ty_term [mkLam tm], eg @ eg1)
+          vlist embedded_body in
+      begin match q with
+      | Term.Tforall -> build_binders allc
+      | Term.Texists -> build_binders existsc
+      end
     end
   | Term.Tif (t1, t2, t3) ->
-    let st, t1, eg1 = embed_term ~depth st t1 in
-    let st, t2, eg2 = embed_term ~depth st t2 in
-    let st, t3, eg3 = embed_term ~depth st t3 in
+    let st, t1, eg1 = aux ~depth st t1 map in
+    let st, t2, eg2 = aux ~depth st t2 map in
+    let st, t3, eg3 = aux ~depth st t3 map in
     st, mkApp itec t1 [t2;t3], eg1@eg2@eg3
   | Term.Ttrue -> st, mkConst truec, []
   | Term.Tfalse -> st, mkConst falsec, []
   | Term.Tnot t ->
-    let st, tm, eg = embed_term ~depth st t in
+    let st, tm, eg = aux ~depth st t map in
     st, (mkApp notc tm []), eg
   | Term.Tbinop (op, t1, t2) ->
-    let st, t1, eg1 = embed_term ~depth st t1 in
-    let st, t2, eg2 = embed_term ~depth st t2 in
+    let st, t1, eg1 = aux ~depth st t1 map in
+    let st, t2, eg2 = aux ~depth st t2 map in
     let eg = eg1 @ eg2 in
   match op with
   | Term.Tand ->     st, (mkApp andc t1 [t2]), eg
   | Term.Tor ->      st, (mkApp orc  t1 [t2]), eg
   | Term.Timplies -> st, (mkApp impc t1 [t2]), eg
   | Term.Tiff ->     st, (mkApp andc (mkApp impc t1 [t2]) [mkApp impc t2 [t1]]), eg
+  in aux ~depth st term Term.Mvs.empty
 
 let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   let unsupported msg =
@@ -124,13 +222,38 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | API.RawData.App (c, t1, []) when c = notc ->
     let st, t1, eg = readback_term ~depth st t1 in
     st, Why3.Term.t_not t1, eg
-  | API.RawData.App (c, t1, tl) when c = applc -> unsupported "applc"
+  | API.RawData.App (c, t1, [tl]) when c = applc ->
+    let st, t1, eg1 = lsym.readback ~depth st t1 in
+    let st, tl, eg2 = (API.BuiltInData.list term).readback ~depth st tl in
+    st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
   | API.RawData.App (c, t1, tl) -> unsupported "app"
   | API.RawData.Cons (_, _) -> unsupported "cons"
   | API.RawData.Nil -> unsupported "nil"
   | API.RawData.Builtin (_, _) -> unsupported "builtin"
   | API.RawData.CData _ -> unsupported "cdata"
   | API.RawData.UnifVar (_, _) -> unsupported "unifvar"
+
+and term : Term.term API.Conversion.t = {
+  API.Conversion.ty = API.Conversion.TyName "term";
+  pp = Pretty.print_term;
+  pp_doc = (fun fmt () -> Format.fprintf fmt
+{|kind term type.
+type lsymb lsymbol -> term.
+type tint int -> term.
+type tstr string -> term.
+type appl lsymbol -> list term -> term.
+type and term -> term -> term.
+type or  term -> term -> term.
+type imp term -> term -> term.
+type all ty -> (term -> term) -> term.
+type ex  ty -> (term -> term) -> term.
+type ite term -> term -> term -> term.
+type not term -> term.
+type top term.
+type bot term.|});
+  readback = readback_term;
+  embed = embed_term;
+}
 
 let prsymbol : Decl.prsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "prsymbol";
@@ -193,24 +316,6 @@ let rec readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl -
   | CData _ -> unsupported "cdata"
   | UnifVar (_, _) -> unsupported "unifvar"
 
-let term : Term.term API.Conversion.t = {
-  API.Conversion.ty = API.Conversion.TyName "term";
-  pp = Pretty.print_term;
-  pp_doc = (fun fmt () -> Format.fprintf fmt
-{|kind term type.
-type lsymb symbol -> term.
-type app list term -> term.
-type and term -> term -> term.
-type or  term -> term -> term.
-type imp term -> term -> term.
-type ite term -> term -> term -> term.
-type not term -> term.
-type tt term.
-type tf term.|});
-  readback = readback_term;
-  embed = embed_term;
-}
-
 let decl : Decl.decl API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "decl";
   pp = Pretty.print_decl;
@@ -243,22 +348,70 @@ let why3_builtin_declarations =
   let open Elpi.API.BuiltInPredicate.Notation in
   [
     MLCode
-      ( Pred ( "why3.create-prsymbol",
-            In  (string, "S",
-            Out (prsymbol, "P",
-            Easy "Create a fresh prsymbol from a string." )),
-            fun name _ ~depth:_ -> !: (Decl.create_prsymbol (Ident.id_fresh name))),
-        DocAbove );
-    MLCode
       (Pred ( "why3.term->string",
             In  (term, "T",
             Out (string, "S",
-            Easy "Pretty print a term using the native pretty printer." )),
+            Easy "Pretty print a term using the native pretty printer" )),
             fun t _ ~depth:_ -> !: (Format.asprintf "%a" Pretty.print_term t )),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.create-prsymbol",
+            In  (string, "S",
+            Out (prsymbol, "P",
+            Easy "Create a fresh prsymbol from a string" )),
+            fun name _ ~depth:_ -> !: (Decl.create_prsymbol (Ident.id_fresh name))),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.create-prop",
+            In  (string,   "N",
+            In  (list ty,  "TS",
+            Out (lsym,       "N",
+            Easy "Axiomatize a propositional symbol with name N and argument types TS" ))),
+            fun name ts _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts None)),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.create-lsymb",
+            In  (string,   "N",
+            In  (list ty,  "TS",
+            In  (ty,  "T",
+            Out (lsym,       "N",
+            Easy "Axiomatize a function symbol with name N, type T and argument types TS" )))),
+            fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts (Some t))),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.var-type",
+            In  (vsym, "V",
+            Out (ty, "T",
+            Easy "Get the type of a variable" )),
+            fun var _ ~depth:_ -> !: (var.vs_ty)),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.lsymb-type",
+            In  (lsym, "L",
+            Out (ty, "T",
+            Easy "Get the type of a predicate symbol" )),
+            fun s _ ~depth:_ -> !: (match s.ls_value with None -> Loc.errorm "No type for predicate symbol" | Some t -> t)),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.search-lsymb",
+            In  (string, "S",
+            In  (string, "T",
+            Out (lsym, "L",
+            Easy "Look up for theory T and for symbol S in T" ))),
+            fun s t _ ~depth:_ -> !: (
+              let config : Whyconf.config = Whyconf.init_config None in
+              let main : Whyconf.main = Whyconf.get_main config in
+              let env : Env.env = Env.create_env (Whyconf.loadpath main) in
+              let theory = Env.read_theory env [] t in
+              Theory.ns_find_ls theory.Theory.th_export [s])),
         DocAbove );
         
     MLData lsym;
+    MLData vsym;
     MLData term;
+    MLData ty;
+    MLData tysym;
+    MLData tyvsym;
     MLData prsymbol;
     MLData decl;
     LPCode {|type transform decl -> list decl -> prop.|}
@@ -298,7 +451,6 @@ let query (g : Decl.prsymbol) (t : Term.term) =
   | NoMoreSteps -> assert false
   in
   out_decl_list
-
 let elpi_trans = Trans.goal query
 
 let () = Trans.register_transform "elpi_query" elpi_trans
