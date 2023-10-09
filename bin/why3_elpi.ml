@@ -153,11 +153,16 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
     begin match trigger with
     | (a::_) -> unsupported "Triggers not supported"
     | [] -> 
+      (* Update the variable map (and depth) by adding each variable in the
+         order in which it appears in the list of vsymbol (vlist) *)
       let map,depth =
         List.fold_right (fun var (map,depth) ->
           (Mvs.add var depth map, depth + 1) )
           vlist (map, depth) in
+      (* The recursive call, with the updated map *)
       let embedded_body = (aux ~depth st term map) in
+      (* Close all the newly created binders with the appropriate quantifer constant
+         at the according type *)
       let build_binders quant =
         List.fold_right (fun var (st, tm, eg) ->
           let st, ty_term, eg1 = ty.embed ~depth st var.vs_ty in
@@ -193,45 +198,78 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   let unsupported msg =
   Loc.errorm "Readback not supported for term: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
-  match API.RawData.look ~depth tm with
-  | API.RawData.Const c when c == truec -> st, Why3.Term.t_true, []
-  | API.RawData.Const c when c == falsec -> st, Why3.Term.t_false, []
-  | API.RawData.Const c when c == lsymbc -> unsupported "const"
-  | API.RawData.Const c -> unsupported "const"
-  | API.RawData.Lam _ -> unsupported "lam"
-  | API.RawData.App (c, t1, [t2]) when c = andc -> 
-    let st, tt1, eg1 = readback_term ~depth st t1 in
-    let st, tt2, eg2 = readback_term ~depth st t2 in
+  let open API.RawData in
+  (* The correspondence between De Brujin levels and Why3 variables during
+     readback is stored in a Wstdlib.Mint map *)
+  let open Wstdlib in
+  let rec aux ~depth st tm (map : Term.vsymbol Mint.t) =
+  let aux_conversion : Term.vsymbol Mint.t -> Term.term API.Conversion.t = fun m -> {
+    API.Conversion.ty = API.Conversion.TyName "term";
+    pp = Pretty.print_term;
+    pp_doc = (fun fmt () -> ());
+    readback = (fun ~depth st tm -> aux ~depth st tm m);
+    embed = embed_term;
+  }
+  in
+(*   Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
+  Format.printf "term: %a@." (Elpi.API.RawPp.term depth) tm; *)
+  match look ~depth tm with
+  | Const c when c == truec -> st, Why3.Term.t_true, []
+  | Const c when c == falsec -> st, Why3.Term.t_false, []
+  | Const c when c == lsymbc -> unsupported "const"
+  | Const c when c>=0 ->
+    st, Why3.Term.t_var (Mint.find c map), []
+  | Const c -> unsupported "const"
+  | Lam t ->
+    let st, tt, eg = aux ~depth:(depth+1) st t map in
+    st, tt, eg
+  | App (c, t1, [t2]) when c = andc -> 
+    let st, tt1, eg1 = aux ~depth st t1 map in
+    let st, tt2, eg2 = aux ~depth st t2 map in
     st,  Why3.Term.t_and tt1 tt2, eg1 @ eg2
-  | API.RawData.App (c, t1, [t2]) when c = orc ->
-    let st, tt1, eg1 = readback_term ~depth st t1 in
-    let st, tt2, eg2 = readback_term ~depth st t2 in
+  | App (c, t1, [t2]) when c = orc ->
+    let st, tt1, eg1 = aux ~depth st t1 map in
+    let st, tt2, eg2 = aux ~depth st t2 map in
     st,  Why3.Term.t_or tt1 tt2, eg1 @ eg2
-  | API.RawData.App (c, t1, [t2]) when c = impc ->
-    let st, tt1, eg1 = readback_term ~depth st t1 in
-    let st, tt2, eg2 = readback_term ~depth st t2 in
+  | App (c, t1, [t2]) when c = impc ->
+    let st, tt1, eg1 = aux ~depth st t1 map in
+    let st, tt2, eg2 = aux ~depth st t2 map in
     st,  Why3.Term.t_implies tt1 tt2, eg1 @ eg2
-  | API.RawData.App (c, t1, [t2;t3]) when c = itec ->
-    let st, tt1, eg1 = readback_term ~depth st t1 in
-    let st, tt2, eg2 = readback_term ~depth st t2 in
-    let st, tt3, eg3 = readback_term ~depth st t3 in
+  | App (c, t1, [t2;t3]) when c = itec ->
+    let st, tt1, eg1 = aux ~depth st t1 map in
+    let st, tt2, eg2 = aux ~depth st t2 map in
+    let st, tt3, eg3 = aux ~depth st t3 map in
     st,  Why3.Term.t_if tt1 tt2 tt3, eg1 @ eg2 @ eg3
-  | API.RawData.App (c, t1, []) when c = lsymbc -> (* To fix for firstorder? *)
+  | App (c, t1, []) when c = lsymbc -> (* To fix for firstorder? *)
     let st, ls, eg = lsym.readback ~depth st t1 in
     st, Why3.Term.t_app_infer ls [], eg
-  | API.RawData.App (c, t1, []) when c = notc ->
-    let st, t1, eg = readback_term ~depth st t1 in
+  | App (c, t1, []) when c = notc ->
+    let st, t1, eg = aux ~depth st t1 map in
     st, Why3.Term.t_not t1, eg
-  | API.RawData.App (c, t1, [tl]) when c = applc ->
+  | App (c, t1, [tl]) when c = applc ->
     let st, t1, eg1 = lsym.readback ~depth st t1 in
-    let st, tl, eg2 = (API.BuiltInData.list term).readback ~depth st tl in
+    let st, tl, eg2 = (API.BuiltInData.list (aux_conversion map)).readback ~depth st tl in
     st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
-  | API.RawData.App (c, t1, tl) -> unsupported "app"
-  | API.RawData.Cons (_, _) -> unsupported "cons"
-  | API.RawData.Nil -> unsupported "nil"
-  | API.RawData.Builtin (_, _) -> unsupported "builtin"
-  | API.RawData.CData _ -> unsupported "cdata"
-  | API.RawData.UnifVar (_, _) -> unsupported "unifvar"
+  | App (c, typ, [bo]) when c = allc ->
+    let st, typ, eg1 = ty.readback ~depth st typ in
+    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
+    let map = Mint.add depth var map in
+    let st, bo, eg2 = aux ~depth st bo map in
+    st, Why3.Term.t_forall_close [var] [] bo, eg1 @ eg2
+  | App (c, typ, [bo]) when c = existsc ->
+    let st, typ, eg1 = ty.readback ~depth st typ in
+    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
+    let map = Mint.add depth var map in
+    let st, bo, eg2 = aux ~depth st bo map in
+    st, Why3.Term.t_exists_close [var] [] bo, eg1 @ eg2
+  | App (c, t1, tl) ->
+    unsupported (Format.asprintf "app %a" (Elpi.API.RawPp.term depth) (mkConst c))
+  | Cons (_, _) -> unsupported "cons"
+  | Nil -> unsupported "nil"
+  | Builtin (_, _) -> unsupported "builtin"
+  | CData _ -> unsupported "cdata"
+  | UnifVar (_, _) -> unsupported "unifvar"
+  in aux ~depth st tm Mint.empty
 
 and term : Term.term API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "term";
@@ -267,6 +305,7 @@ let prsymbol : Decl.prsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare
 let plemmac = Elpi.API.RawData.Constants.declare_global_symbol "lemma"
 let paxiomc = Elpi.API.RawData.Constants.declare_global_symbol "axiom"
 let pgoalc = Elpi.API.RawData.Constants.declare_global_symbol "goal"
+let paramc = Elpi.API.RawData.Constants.declare_global_symbol "param"
 
 let rec embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   let unsupported msg =
@@ -278,7 +317,8 @@ let rec embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   match decl.d_node with
   | Decl.Dtype _ -> unsupported "dtype"
   | Decl.Ddata _ -> unsupported "ddata"
-  | Decl.Dparam _ -> unsupported "dparam"
+  | Decl.Dparam p -> let st, lsymb, eg = lsym.embed ~depth st p in
+    st, mkApp paramc lsymb [], eg
   | Decl.Dlogic _ -> unsupported "dlogic"
   | Decl.Dind _ -> unsupported "dind"
   | Decl.Dprop p ->
@@ -309,6 +349,9 @@ let rec readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl -
   | App (c, symt, [t]) when c = plemmac -> create_decl Decl.Plemma symt t
   | App (c, symt, [t]) when c = paxiomc -> create_decl Decl.Paxiom symt t
   | App (c, symt, [t]) when c = pgoalc ->  create_decl Decl.Pgoal symt t
+  | App (c, symt, []) when c = paramc ->
+    let st, ls, eg = lsym.readback ~depth st symt in
+    st, Decl.create_param_decl ls, eg
   | App (_, _, _) -> unsupported "app"
   | Cons (_, _) -> unsupported "cons"
   | Nil -> unsupported "nil"
@@ -323,7 +366,8 @@ let decl : Decl.decl API.Conversion.t = {
 {|kind decl type.
 type goal  prsymbol -> term -> decl.
 type lemma prsymbol -> term -> decl.
-type axiom prsymbol -> term -> decl.|});
+type axiom prsymbol -> term -> decl.
+type param lsymbol -> decl.|});
   readback = readback_decl;
   embed = embed_decl;
 }
@@ -393,6 +437,13 @@ let why3_builtin_declarations =
             fun s _ ~depth:_ -> !: (match s.ls_value with None -> Loc.errorm "No type for predicate symbol" | Some t -> t)),
         DocAbove );
     MLCode
+      ( Pred ( "why3.lsymb-args-type",
+            In  (lsym, "L",
+            Out (list ty, "T",
+            Easy "Get the list of the argument types of a predicate symbol" )),
+            fun s _ ~depth:_ -> !: (s.ls_args)),
+        DocAbove );
+    MLCode
       ( Pred ( "why3.search-lsymb",
             In  (string, "S",
             In  (string, "T",
@@ -414,7 +465,7 @@ let why3_builtin_declarations =
     MLData tyvsym;
     MLData prsymbol;
     MLData decl;
-    LPCode {|type transform decl -> list decl -> prop.|}
+    LPCode {|type transform string -> decl -> list decl -> prop.|}
     ]
  
 let w3lp_builtins =
@@ -425,7 +476,7 @@ let document () =
   in
   API.BuiltIn.document_file ~header w3lp_builtins
 
-let query (g : Decl.prsymbol) (t : Term.term) =
+let query (arg: string) (g : Decl.prsymbol) (t : Term.term) =
   document ();
   let goal_decl = Decl.create_prop_decl Pgoal g t in
   let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi"
@@ -438,7 +489,7 @@ let query (g : Decl.prsymbol) (t : Term.term) =
     ast |>
     Elpi.API.Compile.unit ~flags ~elpi |>
     (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
-  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(decl,goal_decl,Q(Elpi.API.BuiltInData.list decl,"Output",N)))}) in
+  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(decl,goal_decl,Q(Elpi.API.BuiltInData.list decl,"Output",N))))}) in
   if not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
     then Loc.errorm "elpi: type error in file"
   else
@@ -450,8 +501,16 @@ let query (g : Decl.prsymbol) (t : Term.term) =
   | Failure -> Loc.errorm "elpi: failure"
   | NoMoreSteps -> assert false
   in
+  List.iter (Format.printf "decl: %a@." Pretty.print_decl) out_decl_list;
   out_decl_list
-let elpi_trans = Trans.goal query
 
-let () = Trans.register_transform "elpi_query" elpi_trans
+let elpi_trans : Trans.trans_with_args = 
+  fun argl _env _namtab _name  ->
+    match argl with
+    | [arg] -> (Trans.goal (query arg))
+    | _ -> Loc.errorm "elpi: wrong number of arguments"
+
+(* let () = Trans.register_transform "elpi_query" elpi_trans
+~desc:"Run@ a@ simple@ elpi@ command" *)
+let () = Trans.register_transform_with_args "lp" elpi_trans
 ~desc:"Run@ a@ simple@ elpi@ command"
