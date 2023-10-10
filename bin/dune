@@ -1,29 +1,8 @@
 (executable
  (name why3_elpi)
- (libraries why3 elpi elpi.util elpi.lexer_config menhirLib result seq unix)
- (embed_in_plugin_libraries elpi elpi.util elpi.trace.runtime elpi.parser elpi.lexer_config)
- (flags -linkall)
- (link_flags (:standard -shared))
- (modes plugin))
-
-;; verbose -w A-4-9-41-42-44-45-52@5@8@14@48@50 -safe-string -keep-locs -bin-annot
-;; -dtypes -g -I /home/mmanighe/repo/why3/lib/why3 -I bin -shared -o
-;; bin/why3_elpi.cmxs -thread -I /home/mmanighe/.opam/default/lib/ocaml/unix -I
-;; /home/mmanighe/.opam/default/lib/seq -I /home/mmanighe/.opam/default/lib/re -I
-;; /home/mmanighe/.opam/default/lib/re/str -I
-;; /home/mmanighe/.opam/default/lib/elpi/util -I
-;; /home/mmanighe/.opam/default/lib/elpi/lexer_config -I
-;; /home/mmanighe/.opam/default/lib/menhirLib -I
-;; /home/mmanighe/.opam/default/lib/result -I
-;; /home/mmanighe/.opam/default/lib/ppx_deriving/runtime -I
-;; /home/mmanighe/.opam/default/lib/stdlib-shims -I
-;; /home/mmanighe/.opam/default/lib/elpi/parser -I
-;; /home/mmanighe/.opam/default/lib/elpi/trace/runtime -I
-;; /home/mmanighe/.opam/default/lib/elpi
-;; /home/mmanighe/.opam/default/lib/re/str/re_str.cmxa
-;; /home/mmanighe/.opam/default/lib/elpi/util/elpi_util.cmxa
-;; /home/mmanighe/.opam/default/lib/elpi/lexer_config/elpi_lexer_config.cmxa
-;; /home/mmanighe/.opam/default/lib/stdlib-shims/stdlib_shims.cmxa
-;; /home/mmanighe/.opam/default/lib/elpi/parser/elpi_parser.cmxa
-;; /home/mmanighe/.opam/default/lib/elpi/trace/runtime/trace_ppx_runtime.cmxa
-;; /home/mmanighe/.opam/default/lib/elpi/elpi.cmxa bin/why3_elpi.cmx
+ (libraries why3 elpi)
+ ;; Order here is important!
+ (embed_in_plugin_libraries re elpi.util elpi.trace.runtime elpi.lexer_config elpi.parser elpi)
+ (link_flags -linkall)
+ (modes (native plugin)))
+ (env (dev (flags (:standard -warn-error -A))))

@@ -2,3 +2,4 @@
 _build/*
 *.o
 *.annot
+_opam/*
