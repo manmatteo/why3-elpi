@@ -1,10 +1,10 @@
 open Why3
 open Elpi
-
 (* Constants for Why3 HOAS *)
 let andc = Elpi.API.RawData.Constants.declare_global_symbol "and"
 let orc = Elpi.API.RawData.Constants.declare_global_symbol "or"
 let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
+let iffc = Elpi.API.RawData.Constants.declare_global_symbol "iff"
 let allc = Elpi.API.RawData.Constants.declare_global_symbol "all"
 let existsc = Elpi.API.RawData.Constants.declare_global_symbol "ex"
 let applc = Elpi.API.RawData.Constants.declare_global_symbol "appl"
@@ -31,11 +31,11 @@ let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
 let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "tysymbol";
   doc = "Embedding of type symbols";
-  pp = Pretty.print_ts;
+  pp = (fun fmt a -> Format.fprintf fmt "«%a»" Pretty.print_ts a);
   compare = Ty.ts_compare;
   hash = Hashtbl.hash;
   hconsed = false;
-  constants = [("ts_int", Ty.ts_int ); ("ts_real", Ty.ts_real ); ("ts_bool", Ty.ts_bool ); ("ts_str", Ty.ts_str )];
+  constants = [] (* Are these helpful? [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
 let rec embed_ty : Why3.Ty.ty API.Conversion.embedding = fun ~depth st ty ->
@@ -45,12 +45,12 @@ let rec embed_ty : Why3.Ty.ty API.Conversion.embedding = fun ~depth st ty ->
     let st, ts, eg = tysym.Elpi.API.Conversion.embed ~depth st h in
     st, mkApp tsymbc ts [], eg
   | Ty.Tyapp (h, l) ->
-    let st, ts, eg = tysym.Elpi.API.Conversion.embed ~depth st h in
+    let st, ts, egs = tysym.Elpi.API.Conversion.embed ~depth st h in
     let st, tl, egs = List.fold_right (fun arg (st, args, egs) ->
       let st, tt, eg = embed_ty ~depth st arg in 
       st, mkCons tt args, eg@egs
-    ) l (st,mkNil,[]) in
-    st, mkApp tappc ts [tl], eg
+    ) l (st,mkNil,egs) in
+    st, mkApp tappc ts [tl], egs
   | Ty.Tyvar v ->
     let st, vsymb, eg = tyvsym.embed ~depth st v in
     st, mkApp tvarc vsymb [], eg
@@ -61,7 +61,7 @@ let rec readback_ty : Ty.ty API.Conversion.readback = fun ~depth st tm ->
   Loc.errorm "Readback not supported for type: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
   match (API.RawData.look ~depth tm) with
-  | API.RawData.Const c -> unsupported ""
+  | API.RawData.Const _ -> unsupported ""
   | API.RawData.App (c, ts, []) when c = tsymbc -> 
     let st, ts, eg = tysym.readback ~depth st ts in
     st, Ty.ty_app ts [], eg
@@ -123,26 +123,28 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   let open Term in
   let rec aux ~depth st term (map : constant Mvs.t) =
   match term.t_node with
-  | Term.Tvar v -> st, mkBound @@ Mvs.find v map, []
+  | Term.Tvar v ->
+    (try st, mkBound @@ Mvs.find v map, []
+    with Not_found -> unsupported "unbound variable")
   | Term.Tconst c ->
     begin match c with
+    (* TODO: We would prefer to use BigInt directly. to_int can raise overflow exceptions *)
     | Constant.ConstInt n -> let st, tm, eg = API.BuiltInData.int.embed ~depth st (BigInt.to_int n.il_int) in st, mkApp intc tm [], eg
-    | Constant.ConstReal r -> unsupported "real"
+    | Constant.ConstReal _ -> unsupported "real"
     | Constant.ConstStr s -> let st, tm, eg = API.BuiltInData.string.embed ~depth st s in st, mkApp strc tm [], eg
     end
   | Term.Tapp (ls, []) -> (* single constant *)
     let st, lsy, extra_goals = lsym.Elpi.API.Conversion.embed st ~depth ls in
     st, mkApp lsymbc lsy [], extra_goals
   | Term.Tapp (ls, args) -> (* constant with arguments *)
-    let st, lsy, extra_goals = lsym.Elpi.API.Conversion.embed st ~depth ls in
+    let st, lsy, eg = lsym.Elpi.API.Conversion.embed st ~depth ls in
     let st, argslist, egs = List.fold_right (fun arg (st, args, egs) ->
       let st, tt, eg = aux ~depth st arg map in 
       st, tt::args, eg@egs
-    ) args (st,[],[]) in
+    ) args (st,[],eg) in
     let argslist = List.fold_right (fun arg acc ->
-      mkCons arg acc
-      ) argslist mkNil in
-    st, mkApp applc lsy [argslist], extra_goals
+      mkCons arg acc) argslist mkNil in
+    st, mkApp applc lsy [argslist], egs 
   | Term.Tlet (_, _)
   -> unsupported "let binder"
   | Term.Tcase (_, _)
@@ -151,7 +153,7 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tquant (q, tq) ->
     let (vlist,trigger,term) = Term.t_open_quant tq in
     begin match trigger with
-    | (a::_) -> unsupported "Triggers not supported"
+    | (_::_) -> unsupported "Triggers not supported"
     | [] -> 
       (* Update the variable map (and depth) by adding each variable in the
          order in which it appears in the list of vsymbol (vlist) *)
@@ -191,7 +193,7 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tand ->     st, (mkApp andc t1 [t2]), eg
   | Term.Tor ->      st, (mkApp orc  t1 [t2]), eg
   | Term.Timplies -> st, (mkApp impc t1 [t2]), eg
-  | Term.Tiff ->     st, (mkApp andc (mkApp impc t1 [t2]) [mkApp impc t2 [t1]]), eg
+  | Term.Tiff ->     st, (mkApp iffc t1 [t2]), eg
   in aux ~depth st term Term.Mvs.empty
 
 let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
@@ -203,15 +205,25 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
      readback is stored in a Wstdlib.Mint map *)
   let open Wstdlib in
   let rec aux ~depth st tm (map : Term.vsymbol Mint.t) =
+  (* Instrument a full conversion dependent on a variable map, so that it can be used
+     to call a `list term` conversion in a recursive call *)
   let aux_conversion : Term.vsymbol Mint.t -> Term.term API.Conversion.t = fun m -> {
     API.Conversion.ty = API.Conversion.TyName "term";
-    pp = Pretty.print_term;
-    pp_doc = (fun fmt () -> ());
+    pp = Pretty.print_term; pp_doc = (fun _ () -> ()); embed = embed_term;
     readback = (fun ~depth st tm -> aux ~depth st tm m);
-    embed = embed_term;
   }
   in
-(*   Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
+  let build_quantified_body ~depth st typ bo map quant_builder =
+    let st, typ, eg1 = ty.readback ~depth st typ in
+    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
+    let map = Mint.add depth var map in
+    let st, bo, eg2 = aux ~depth st bo map in
+    (match bo.t_node with
+    | Term.Tquant (_, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
+      st, quant_builder (var::vlist) [] bo, eg1 @ eg2
+    | _ -> st, quant_builder [var] [] bo, eg1 @ eg2)
+  in
+(*Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
   Format.printf "term: %a@." (Elpi.API.RawPp.term depth) tm; *)
   match look ~depth tm with
   | Const c when c == truec -> st, Why3.Term.t_true, []
@@ -219,7 +231,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | Const c when c == lsymbc -> unsupported "const"
   | Const c when c>=0 ->
     st, Why3.Term.t_var (Mint.find c map), []
-  | Const c -> unsupported "const"
+  | Const _ -> unsupported "const"
   | Lam t ->
     let st, tt, eg = aux ~depth:(depth+1) st t map in
     st, tt, eg
@@ -235,6 +247,10 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     let st, tt1, eg1 = aux ~depth st t1 map in
     let st, tt2, eg2 = aux ~depth st t2 map in
     st,  Why3.Term.t_implies tt1 tt2, eg1 @ eg2
+  | App (c, t1, [t2]) when c = iffc ->
+    let st, tt1, eg1 = aux ~depth st t1 map in
+    let st, tt2, eg2 = aux ~depth st t2 map in
+    st,  Why3.Term.t_iff tt1 tt2, eg1 @ eg2
   | App (c, t1, [t2;t3]) when c = itec ->
     let st, tt1, eg1 = aux ~depth st t1 map in
     let st, tt2, eg2 = aux ~depth st t2 map in
@@ -251,18 +267,13 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     let st, tl, eg2 = (API.BuiltInData.list (aux_conversion map)).readback ~depth st tl in
     st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
   | App (c, typ, [bo]) when c = allc ->
-    let st, typ, eg1 = ty.readback ~depth st typ in
-    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
-    let map = Mint.add depth var map in
-    let st, bo, eg2 = aux ~depth st bo map in
-    st, Why3.Term.t_forall_close [var] [] bo, eg1 @ eg2
+    build_quantified_body ~depth st typ bo map Why3.Term.t_forall_close
   | App (c, typ, [bo]) when c = existsc ->
-    let st, typ, eg1 = ty.readback ~depth st typ in
-    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
-    let map = Mint.add depth var map in
-    let st, bo, eg2 = aux ~depth st bo map in
-    st, Why3.Term.t_exists_close [var] [] bo, eg1 @ eg2
-  | App (c, t1, tl) ->
+    build_quantified_body ~depth st typ bo map Why3.Term.t_exists_close
+  | App (c, n, []) when c = intc -> (* Native integers *)
+    let st, n, eg = API.BuiltInData.int.readback ~depth st n
+    in st, Why3.Term.t_nat_const n, eg
+  | App (c, _, _) ->
     unsupported (Format.asprintf "app %a" (Elpi.API.RawPp.term depth) (mkConst c))
   | Cons (_, _) -> unsupported "cons"
   | Nil -> unsupported "nil"
@@ -283,6 +294,7 @@ type appl lsymbol -> list term -> term.
 type and term -> term -> term.
 type or  term -> term -> term.
 type imp term -> term -> term.
+type iff term -> term -> term.
 type all ty -> (term -> term) -> term.
 type ex  ty -> (term -> term) -> term.
 type ite term -> term -> term -> term.
