@@ -314,42 +314,128 @@ let prsymbol : Decl.prsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare
   hconsed = false;
   constants = [];
 }
+
+let defc = Elpi.API.RawData.Constants.declare_global_symbol "def"
+let def2c = Elpi.API.RawData.Constants.declare_global_symbol "def2"
+
+let embed_data_decl : Decl.data_decl API.Conversion.embedding = fun ~depth st ddecls ->
+  let open Elpi.API.RawData in
+  let (ty, kons) = ddecls in
+  let st, tsymb, eg1 = tysym.embed ~depth st ty in
+  let st, lkons, eg2 = (* Building a list of constructors for the given type *)
+    List.fold_left (fun (st,t,eg) (ls, ll) ->
+      let st, projlist, eg1 =
+        List.fold_left (fun (st,ll,eg) maybe_ls -> (* Building a list of projection for the given symbol *)
+          match maybe_ls with None -> st,ll,eg
+          | Some s -> let a, b, c = lsym.embed ~depth st s in a, mkCons b ll, c@eg)
+        (st, mkNil, []) ll
+      in let st, lsymb, eg2 = lsym.embed ~depth st ls in
+      let newdef = mkApp defc lsymb [projlist]
+      in st, mkCons newdef t, eg@eg1@eg2)
+    (st, mkNil, []) kons
+  in let newtype = mkApp def2c tsymb [lkons]
+  in st, newtype ,eg1@eg2
+let readback_data_decl : Decl.data_decl API.Conversion.readback = fun ~depth st ddecls ->
+  let unsupported msg =
+  Loc.errorm "Data declaration is not well-formed: (%s, %a)@." msg (Elpi.API.RawPp.term depth) ddecls
+  in
+  let open Elpi.API.RawData in
+  (match look ~depth ddecls with
+  | App (h, tsymb, [lkons]) when h=def2c->
+    let st, tsymb, eg = tysym.readback ~depth st tsymb in
+    let lkons = API.Utils.lp_list_to_list ~depth lkons in
+    let st, lkons, eg = List.fold_left (fun (st, cur, egs) kons ->
+      match (look ~depth kons) with
+      | App (h,lsymb,[projlist]) when h=defc -> 
+        let st, lsymb, eg1 = lsym.readback ~depth st lsymb in
+        let st, projlist, eg2 = (API.BuiltInData.list lsym).readback ~depth st projlist in
+        st, (lsymb, projlist)::cur, eg1@eg2@egs
+      | _ -> unsupported "")
+    (st, [], eg) lkons
+    in
+    let lkons = (List.map (fun (ls,lk) -> ls, List.map (fun x -> Some x) lk) lkons) in
+    st, (tsymb, lkons), eg
+  | _ -> unsupported "")
+
+let data_decl : Decl.data_decl API.Conversion.t = {
+  pp = Pretty.print_data_decl;
+  ty = API.Conversion.TyName "data_decl";
+  pp_doc = (fun fmt () -> Format.fprintf fmt "");
+  readback = readback_data_decl;
+  embed = embed_data_decl;
+}
+
+(** Logic declarations are currently embedded by obtaining and reading back
+their defining axiom. This isn't very robust and is subject to change.*)
+let logicdeclc = Elpi.API.RawData.Constants.declare_global_symbol "logic"
+let embed_logic_decl : Decl.logic_decl API.Conversion.embedding = fun ~depth st (ls,def) ->
+  let open API.RawData in
+(*   Format.printf "embedding %a in context %s@." Pretty.print_term tm (List.fold_left (fun a v -> a ^ (Format.asprintf "%a " Pretty.print_vs v)) "" vars); *)
+  let st, ax, eg1 = embed_term ~depth st (Decl.ls_defn_axiom def) in
+  let st, ls, eg2 = lsym.embed ~depth st ls in
+  st, mkApp logicdeclc ls [ax], eg1@eg2
+let readback_logic_decl : Decl.logic_decl API.Conversion.readback = fun ~depth st term ->
+  let unsupported msg =
+    Loc.errorm "Readback not supported for logic decl: %s@." msg
+  in
+  let open Elpi.API.RawData in
+  let open Decl in
+  match look ~depth term with
+  | App (c, ls, [ax]) when c = logicdeclc ->
+    let st, _ls, eg1 = lsym.readback ~depth st ls in (* Lsymbol is not needed for now as it is read back from axiom *)
+    let st, ax, eg2 = readback_term ~depth st ax in
+    (match (ls_defn_of_axiom ax) with
+    | Some ax -> st, ax, eg1@eg2
+    | None -> unsupported "Couldn't read back logic declaration from axiom")
+  | _ -> unsupported "invalid"
+
+let logic_decl : Decl.logic_decl API.Conversion.t = {
+  pp = Pretty.print_logic_decl;
+  ty = API.Conversion.TyName "logic_decl";
+  pp_doc = (fun fmt () -> Format.fprintf fmt "type logic  lsymbol  -> term -> logic_decl.");
+  readback = readback_logic_decl;
+  embed = embed_logic_decl;
+}
+
 let plemmac = Elpi.API.RawData.Constants.declare_global_symbol "lemma"
 let paxiomc = Elpi.API.RawData.Constants.declare_global_symbol "axiom"
 let pgoalc = Elpi.API.RawData.Constants.declare_global_symbol "goal"
 let paramc = Elpi.API.RawData.Constants.declare_global_symbol "param"
+let tydeclc = Elpi.API.RawData.Constants.declare_global_symbol "tydecl"
+let decllc = Elpi.API.RawData.Constants.declare_global_symbol "declls"
+let datac = Elpi.API.RawData.Constants.declare_global_symbol "data"
 
-let rec embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
+let embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   let unsupported msg =
   Loc.errorm "Embed not supported for decl :(%s, %a)@." msg Pretty.print_decl decl
   in
   let open Elpi.API.RawData in
+  let open Decl in
   let _dtag = decl.d_tag in     (* TODO *)
-  let _dnews = decl.d_news in   (* TODO *)
+  let _dnews = decl.d_news in   (* TODO! Important *) (*   Format.printf "The idents introduced in decl: %s@." (Ident.Sid.fold (fun id str -> id.id_string ^ "," ^ str) _dnews ""); *)
   match decl.d_node with
-  | Decl.Dtype _ -> unsupported "dtype"
-  | Decl.Ddata _ -> unsupported "ddata"
+  | Decl.Dtype ty -> let st, tsymb, eg = tysym.embed ~depth st ty in
+    st, mkApp tydeclc tsymb [], eg
+  | Decl.Ddata ddecls -> (* Algebraic data *)
+    let st, ddecls, eg = (API.BuiltInData.list data_decl).embed ~depth st ddecls
+    in st, mkApp datac ddecls [], eg
   | Decl.Dparam p -> let st, lsymb, eg = lsym.embed ~depth st p in
     st, mkApp paramc lsymb [], eg
-  | Decl.Dlogic _ -> unsupported "dlogic"
+  | Decl.Dlogic ll -> (* Logic declarations *)
+    let st, ll, eg = (API.BuiltInData.list logic_decl).embed ~depth st ll
+    in st, mkApp decllc ll [], eg
+  | Decl.Dprop (k,s,t) ->
+    let st, prsym, eg1 = prsymbol.Elpi.API.Conversion.embed ~depth st s in
+    let st, tt, eg2 = embed_term ~depth st t in
+    let konst = (match k with | Plemma -> plemmac | Paxiom -> paxiomc | Pgoal  -> pgoalc)
+    in st, mkApp konst prsym [tt], eg1@eg2
   | Decl.Dind _ -> unsupported "dind"
-  | Decl.Dprop p ->
-    let (k, s, t) = p in
-    let st, prsym, eg = prsymbol.Elpi.API.Conversion.embed ~depth st s in
-    let st, tt, eg = embed_term ~depth st t in
-    match k with
-    | Decl.Plemma ->
-        st, mkApp plemmac prsym [tt], []
-    | Decl.Paxiom ->
-        st, mkApp paxiomc prsym [tt], []
-    | Decl.Pgoal ->
-        st, mkApp pgoalc  prsym [tt], []
 
-let rec readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl ->
+let readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl ->
   let unsupported msg =
   Loc.errorm "Readback not supported for decl: (%s, %a)@." msg (Elpi.API.RawPp.term depth) decl
   in
-  let create_decl k symt t =
+  let create_prop_decl k symt t =
     let st, prs, eg1 = prsymbol.readback ~depth st symt in
     let st, tt, eg2  = readback_term ~depth st t in
     st, Decl.create_prop_decl k prs tt, eg1 @ eg2
@@ -358,12 +444,21 @@ let rec readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl -
   match look ~depth decl with
   | Const _ -> unsupported "const"
   | Lam _ -> unsupported "lam"
-  | App (c, symt, [t]) when c = plemmac -> create_decl Decl.Plemma symt t
-  | App (c, symt, [t]) when c = paxiomc -> create_decl Decl.Paxiom symt t
-  | App (c, symt, [t]) when c = pgoalc ->  create_decl Decl.Pgoal symt t
-  | App (c, symt, []) when c = paramc ->
+  | App (c, symt, [t]) when c = plemmac -> create_prop_decl Decl.Plemma symt t
+  | App (c, symt, [t]) when c = paxiomc -> create_prop_decl Decl.Paxiom symt t
+  | App (c, symt, [t]) when c = pgoalc ->  create_prop_decl Decl.Pgoal symt t
+  | App (c, symt, []) when  c = paramc ->
     let st, ls, eg = lsym.readback ~depth st symt in
     st, Decl.create_param_decl ls, eg
+  | App (c, tysymt, []) when c = tydeclc ->
+    let st, ts, eg = tysym.readback ~depth st tysymt in
+    st, Decl.create_ty_decl ts, eg
+  | App (c, dlist, []) when c = datac -> (* Algebraic data *)
+    let st, dlist, eg = (API.BuiltInData.list data_decl).readback ~depth st dlist in
+    st, Decl.create_data_decl dlist, eg
+  | App (c, llist, []) when c = decllc -> (* Defined predicate *)
+    let st, dlist, eg = (API.BuiltInData.list logic_decl).readback ~depth st llist in
+    st, Decl.create_logic_decl dlist, eg
   | App (_, _, _) -> unsupported "app"
   | Cons (_, _) -> unsupported "cons"
   | Nil -> unsupported "nil"
@@ -376,12 +471,35 @@ let decl : Decl.decl API.Conversion.t = {
   pp = Pretty.print_decl;
   pp_doc = (fun fmt () -> Format.fprintf fmt
 {|kind decl type.
-type goal  prsymbol -> term -> decl.
-type lemma prsymbol -> term -> decl.
-type axiom prsymbol -> term -> decl.
-type param lsymbol -> decl.|});
+type goal   prsymbol -> term -> decl.
+type lemma  prsymbol -> term -> decl.
+type axiom  prsymbol -> term -> decl.
+type tydecl tysymbol -> decl.
+type data   list X   -> decl.
+type declls list X   -> decl.
+type param  lsymbol  -> decl.|});
   readback = readback_decl;
   embed = embed_decl;
+}
+
+(* Tasks are embedded as lists of declaration (there is more
+   useful information but we ignore it for now)*)
+let embed_task : Task.task API.Conversion.embedding =
+  fun ~depth st task ->
+  (API.BuiltInData.list decl).embed ~depth st (Task.task_decls task)
+
+let readback_task : Task.task API.Conversion.readback =
+  fun ~depth st term ->
+    let st, decl_list, eg = (API.BuiltInData.list decl).readback ~depth st term in
+    let task = List.fold_left Task.add_decl None decl_list in
+    st, task, eg
+
+let task : Task.task API.Conversion.t = {
+  API.Conversion.ty = API.Conversion.TyName "list decl";
+  pp = Pretty.print_task;
+  pp_doc = (fun _fmt () -> ());
+  readback = readback_task;
+  embed = embed_task;
 }
 
 (* let lpq : Elpi.API.Quotation.quotation = fun ~depth st _loc text ->
@@ -409,6 +527,13 @@ let why3_builtin_declarations =
             Out (string, "S",
             Easy "Pretty print a term using the native pretty printer" )),
             fun t _ ~depth:_ -> !: (Format.asprintf "%a" Pretty.print_term t )),
+        DocAbove );
+    MLCode
+      (Pred ( "why3.decl->string",
+            In  (decl, "D",
+            Out (string, "S",
+            Easy "Pretty print a declaration using the native pretty printer" )),
+            fun d _ ~depth:_ -> !: (Format.asprintf "%a" Pretty.print_decl d )),
         DocAbove );
     MLCode
       ( Pred ( "why3.create-prsymbol",
@@ -477,7 +602,7 @@ let why3_builtin_declarations =
     MLData tyvsym;
     MLData prsymbol;
     MLData decl;
-    LPCode {|type transform string -> decl -> list decl -> prop.|}
+    LPCode {|type transform string -> list decl -> list decl -> prop.|}
     ]
  
 let w3lp_builtins =
@@ -488,9 +613,8 @@ let document () =
   in
   API.BuiltIn.document_file ~header w3lp_builtins
 
-let query (arg: string) (g : Decl.prsymbol) (t : Term.term) =
+let query (arg: string) (t : Task.task) =
   document ();
-  let goal_decl = Decl.create_prop_decl Pgoal g t in
   let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi"
   (why3_builtin_declarations @ Elpi.Builtin.std_declarations)] in
   let elpi = (API.Setup.init ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
@@ -501,25 +625,23 @@ let query (arg: string) (g : Decl.prsymbol) (t : Term.term) =
     ast |>
     Elpi.API.Compile.unit ~flags ~elpi |>
     (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
-  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(decl,goal_decl,Q(Elpi.API.BuiltInData.list decl,"Output",N))))}) in
+  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(task,t,Q(task,"Output",N))))}) in
   if not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
     then Loc.errorm "elpi: type error in file"
   else
   let out_decl_list =
   match Elpi.API.Execute.once (Elpi.API.Compile.optimize main_query) with
-  | Elpi.API.Execute.Success {
-      Elpi.API.Data.state = st; pp_ctx; constraints; output = (tm, ()); _
-    } -> Format.printf "elpi: success\n%!" ; tm
+  | Elpi.API.Execute.Success { output = (tm, ()); _ } ->
+    Format.printf "elpi: success\n%!" ; tm
   | Failure -> Loc.errorm "elpi: failure"
   | NoMoreSteps -> assert false
   in
-  List.iter (Format.printf "decl: %a@." Pretty.print_decl) out_decl_list;
   out_decl_list
 
 let elpi_trans : Trans.trans_with_args = 
   fun argl _env _namtab _name  ->
     match argl with
-    | [arg] -> (Trans.goal (query arg))
+    | [arg] -> (Trans.store (query arg))
     | _ -> Loc.errorm "elpi: wrong number of arguments"
 
 (* let () = Trans.register_transform "elpi_query" elpi_trans
