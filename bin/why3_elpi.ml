@@ -105,15 +105,6 @@ let vsym : Term.vsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [];
 }
 
-let int : Number.int_constant API.Conversion.t = 
-let open Elpi.API.Conversion in {
-ty = TyName "int";
-pp = (fun _ _ -> ());
-pp_doc = (fun fmt () -> Format.fprintf fmt
-{|kind int type.|});
-readback = (fun ~depth st tm -> assert false);
-embed = (fun ~depth st tm -> assert false);
-}
 
 let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   let unsupported msg =
