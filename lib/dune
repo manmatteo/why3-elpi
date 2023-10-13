@@ -1,0 +1,3 @@
+(library
+ (name why3_elpi)
+ (libraries why3 elpi))

@@ -1,8 +1,8 @@
 (executable
- (name why3_elpi)
- (libraries why3 elpi)
+ (name why3_elpi_trans)
+ (libraries why3 elpi why3_elpi)
  ;; Order here is important!
- (embed_in_plugin_libraries re elpi.util elpi.trace.runtime elpi.lexer_config elpi.parser elpi)
+ (embed_in_plugin_libraries re elpi.util elpi.trace.runtime elpi.lexer_config elpi.parser elpi why3_elpi)
  (link_flags -linkall)
  (modes (native plugin)))
  (env (dev (flags (:standard -warn-error -A))))

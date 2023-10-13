@@ -5,11 +5,9 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github manmatteo/why3-elpi))
 
-(authors "Author Name")
-
-(maintainers "Maintainer Name")
+(authors "Matteo Manighetti")
 
 (license LICENSE)
 
@@ -17,11 +15,9 @@
 
 (package
  (name why3_elpi)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "Access the Why3 API from Elpi")
+ (description "Bindings to the Why3 API in λProlog using the Elpi library.")
  (depends ocaml dune why3 elpi)
- (allow_empty)
+(allow_empty)
  (tags
   (topics "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
