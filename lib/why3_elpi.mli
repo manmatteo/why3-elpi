@@ -2,10 +2,11 @@
 val term : Why3.Term.term Elpi.API.Conversion.t
 val ty : Why3.Ty.ty Elpi.API.Conversion.t
 val task : Why3.Task.task Elpi.API.Conversion.t
+val env : Why3.Env.env Elpi.API.Conversion.t
 
 (** Declarations of builtin predicates and types *)
 val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
-val document : unit -> unit
+val document : Elpi.API.BuiltIn.declaration list -> unit
 
 (** Other embeddings: constants (ty/l symbols) and variables for types and terms *)
 val tyvsym : Why3.Ty.tvsymbol Elpi.API.Conversion.t

@@ -1,10 +1,23 @@
 open Why3
 open Elpi
 open Why3_elpi
-let query (arg: string) (t : Task.task) =
-  document ();
-  let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi"
-  (why3_builtin_declarations @ Elpi.Builtin.std_declarations)] in
+
+let why3_transform_declarations =  fun (e : Env.env) ->
+  let open Elpi.API.BuiltIn in
+  let open Elpi.API.BuiltInPredicate in
+  let open Elpi.API.BuiltInPredicate.Notation in
+    [MLCode
+      ( Pred ( "why3.get-env",
+            Out  (env, "E",
+            Easy "Get the environment in which the transformation is called" ),
+            fun _ ~depth:_ -> !: (e)),
+        DocAbove );
+  LPCode {|type transform string -> list decl -> list decl -> prop.|}]
+
+let query (arg: string) (e: Env.env) (t : Task.task) =
+  let transform_builtins = why3_builtin_declarations @ why3_transform_declarations e in
+  document transform_builtins;
+  let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi" (transform_builtins @ Elpi.Builtin.std_declarations)] in
   let elpi = (API.Setup.init ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
   let loc = Elpi.API.Ast.Loc.initial "(elpi)" in
   let ast = Elpi.API.Parse.program ~elpi ~files:["test.elpi"] in
@@ -27,9 +40,9 @@ let query (arg: string) (t : Task.task) =
   out_decl_list
 
 let elpi_trans : Trans.trans_with_args = 
-  fun argl _env _namtab _name  ->
+  fun argl env _namtab _name  ->
     match argl with
-    | [arg] -> (Trans.store (query arg))
+    | [arg] -> (Trans.store (query arg env))
     | _ -> Loc.errorm "elpi: wrong number of arguments"
 
 (* let () = Trans.register_transform "elpi_query" elpi_trans
