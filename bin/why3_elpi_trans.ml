@@ -12,7 +12,8 @@ let why3_transform_declarations =  fun (e : Env.env) ->
             Easy "Get the environment in which the transformation is called" ),
             fun _ ~depth:_ -> !: (e)),
         DocAbove );
-  LPCode {|type transform string -> list decl -> list decl -> prop.|}]
+
+let debug_no_typecheck = Debug.register_flag ~desc:"Disable typechecking for Elpi transformations" "no_elpi_tc"
 
 let query (arg: string) (e: Env.env) (t : Task.task) =
   let transform_builtins = why3_builtin_declarations @ why3_transform_declarations e in
@@ -27,7 +28,7 @@ let query (arg: string) (e: Env.env) (t : Task.task) =
     Elpi.API.Compile.unit ~flags ~elpi |>
     (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
   let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(task,t,Q(task,"Output",N))))}) in
-  if not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
+  if not (Debug.test_flag debug_no_typecheck) && not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
     then Loc.errorm "elpi: type error in file"
   else
   let out_decl_list =
