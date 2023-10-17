@@ -15,9 +15,6 @@ let intc = Elpi.API.RawData.Constants.declare_global_symbol "tint"
 let falsec = Elpi.API.RawData.Constants.declare_global_symbol "bot"
 let truec = Elpi.API.RawData.Constants.declare_global_symbol "top"
 let itec = Elpi.API.RawData.Constants.declare_global_symbol "ite"
-let tvarc = Elpi.API.RawData.Constants.declare_global_symbol "tvar"
-let tsymbc = Elpi.API.RawData.Constants.declare_global_symbol "tsymb"
-let tappc = Elpi.API.RawData.Constants.declare_global_symbol "tapp"
 
 let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "env";
@@ -47,53 +44,28 @@ let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [] (* Are these helpful? [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
-let rec embed_ty : Why3.Ty.ty API.Conversion.embedding = fun ~depth st ty ->
-  let open Elpi.API.RawData in
-  match ty.ty_node with
-  | Ty.Tyapp (h, []) ->
-    let st, ts, eg = tysym.Elpi.API.Conversion.embed ~depth st h in
-    st, mkApp tsymbc ts [], eg
-  | Ty.Tyapp (h, l) ->
-    let st, ts, egs = tysym.Elpi.API.Conversion.embed ~depth st h in
-    let st, tl, egs = List.fold_right (fun arg (st, args, egs) ->
-      let st, tt, eg = embed_ty ~depth st arg in 
-      st, mkCons tt args, eg@egs
-    ) l (st,mkNil,egs) in
-    st, mkApp tappc ts [tl], egs
-  | Ty.Tyvar v ->
-    let st, vsymb, eg = tyvsym.embed ~depth st v in
-    st, mkApp tvarc vsymb [], eg
-
-(* This readback is defined in mutual recursion with the entire conversion *)
-let rec readback_ty : Ty.ty API.Conversion.readback = fun ~depth st tm ->
-  let unsupported msg =
-  Loc.errorm "Readback not supported for type: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
-  in
-  match (API.RawData.look ~depth tm) with
-  | API.RawData.Const _ -> unsupported ""
-  | API.RawData.App (c, ts, []) when c = tsymbc -> 
-    let st, ts, eg = tysym.readback ~depth st ts in
-    st, Ty.ty_app ts [], eg
-  | API.RawData.App (c, ts, [tl]) when c = tappc  -> 
-    let st, ts, eg1 = tysym.readback ~depth st ts in
-    let st, args, eg2 = (API.BuiltInData.list ty).readback ~depth st tl in
-    st, Ty.ty_app ts args, eg1@eg2
-  | _ -> unsupported ""
-
-(* Embedding of types *)
-and ty : Ty.ty API.Conversion.t =
-   {
-  API.Conversion.ty = API.Conversion.TyName "ty";
+let ty_declaration : (Ty.ty,'a,'b) API.AlgebraicData.declaration = 
+  let open API.BuiltInData in
+  let open API.ContextualConversion in
+  {
+  ty = TyName "ty";
+  doc = "Embedding of types";
   pp = Pretty.print_ty;
-  pp_doc = (fun fmt () -> Format.fprintf fmt
-{|%% Embedding of types
-kind ty type.
-type tvar tyvsymbol -> ty.
-type tapp tysymbol -> list ty -> ty.
-type tsymb tysymbol -> ty.|});
-  readback = readback_ty;
-  embed = embed_ty;
+  constructors = [
+   K("tvar","Type variable",
+     A (tyvsym,N),
+     B Ty.ty_var,
+     M (fun ~ok ~ko ty ->
+       (match ty.ty_node with | Ty.Tyvar v -> ok v | _ -> ko ())));
+   K("tapp","",
+     A (tysym,C((fun x -> (!>) (list (!< x))) , N)),
+     B Ty.ty_app,
+     M (fun ~ok ~ko ty ->
+       (match ty.ty_node with | Ty.Tyapp (t, u) -> ok t u | _ -> ko ())));
+  ]
 }
+
+let ty = API.AlgebraicData.declare ty_declaration
 
 (** Embedding of lsymbols. Note: we are using OpaqueData, so argument and value
     types are not exposed to the API. They can be inspected or manipulated by
@@ -173,7 +145,7 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
          at the according type *)
       let build_binders quant =
         List.fold_right (fun var (st, tm, eg) ->
-          let st, ty_term, eg1 = ty.embed ~depth st var.vs_ty in
+          let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
           st, mkApp quant ty_term [mkLam tm], eg @ eg1)
           vlist embedded_body in
       begin match q with
@@ -552,7 +524,7 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.create-prop",
             In  (string,   "N",
-            In  (list ty,  "TS",
+            In  (list @@ (!<) ty,  "TS",
             Out (lsym,       "N",
             Easy "Axiomatize a propositional symbol with name N and argument types TS" ))),
             fun name ts _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts None)),
@@ -560,8 +532,8 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.create-lsymb",
             In  (string,   "N",
-            In  (list ty,  "TS",
-            In  (ty,  "T",
+            In  (list @@ (!<) ty,  "TS",
+            CIn  (ty,  "T",
             Out (lsym,       "N",
             Easy "Axiomatize a function symbol with name N, type T and argument types TS" )))),
             fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts (Some t))),
@@ -569,21 +541,21 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.var-type",
             In  (vsym, "V",
-            Out (ty, "T",
+            COut (ty, "T",
             Easy "Get the type of a variable" )),
             fun var _ ~depth:_ -> !: (var.vs_ty)),
         DocAbove );
     MLCode
       ( Pred ( "why3.lsymb-type",
             In  (lsym, "L",
-            Out (ty, "T",
+            COut (ty, "T",
             Easy "Get the type of a predicate symbol" )),
             fun s _ ~depth:_ -> !: (match s.ls_value with None -> Loc.errorm "No type for predicate symbol" | Some t -> t)),
         DocAbove );
     MLCode
       ( Pred ( "why3.lsymb-args-type",
             In  (lsym, "L",
-            Out (list ty, "T",
+            Out (list @@ (!<) ty, "T",
             Easy "Get the list of the argument types of a predicate symbol" )),
             fun s _ ~depth:_ -> !: (s.ls_args)),
         DocAbove );
@@ -605,7 +577,7 @@ let why3_builtin_declarations =
     MLData lsym;
     MLData vsym;
     MLData term;
-    MLData ty;
+    MLDataC ty;
     MLData tysym;
     MLData tyvsym;
     MLData prsymbol;
