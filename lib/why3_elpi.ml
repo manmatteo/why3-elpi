@@ -192,7 +192,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   }
   in
   let build_quantified_body ~depth st typ bo map quant_builder =
-    let st, typ, eg1 = ty.readback ~depth st typ in
+    let st, typ, eg1 = ty.readback () () ~depth st typ in
     let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
     let map = Mint.add depth var map in
     let st, bo, eg2 = aux ~depth st bo map in
@@ -428,6 +428,9 @@ let readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl ->
   | App (c, symt, [t]) when c = pgoalc ->  create_prop_decl Decl.Pgoal  symt t
   | App (c, symt, []) when  c = paramc ->
     let st, ls, eg   = lsym.readback ~depth st symt in
+(*     if Term.ls_equal ls Term.ps_equ then
+      st, Decl.create_prop_decl Decl.Paxiom (Decl.create_prsymbol (Ident.id_fresh "a")) Term.t_true, eg
+    else *)
     st, Decl.create_param_decl ls, eg
   | App (c, tysymt, []) when c = tydeclc ->
     let st, ts, eg = tysym.readback ~depth st tysymt in
@@ -461,20 +464,92 @@ type param  lsymbol  -> decl.|});
   embed = embed_decl;
 }
 
-(* Tasks are embedded as lists of declaration (there is more
-   useful information but we ignore it for now)*)
+let theory : Theory.theory Elpi.API.Conversion.t = API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "theory";
+  doc = "Symbol for theory (currently cannot be inspected)";
+  pp = (fun fmt t -> Format.fprintf fmt "%s" t.Theory.th_name.id_string);
+  compare = (fun x y -> Stdlib.compare x.th_name y.th_name);
+  hash = (fun x -> Hashtbl.hash x.th_name);
+  hconsed = false;
+  constants = [];
+}
+let meta : Theory.meta Elpi.API.Conversion.t = API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "meta";
+  doc = "Symbol for meta (currently cannot be inspected)";
+  pp = (fun fmt m -> Format.fprintf fmt "%s" m.Theory.meta_name);
+  compare = (fun x y -> Stdlib.compare x.meta_tag y.meta_tag);
+  hash = (fun x -> Hashtbl.hash x.meta_tag);
+  hconsed = false;
+  constants = [];
+}
+let meta_arg : Theory.meta_arg Elpi.API.Conversion.t = API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "meta-arg";
+  doc = "Symbol for meta args (currently cannot be inspected)";
+  pp = (fun fmt m -> Format.fprintf fmt "%a" Pretty.print_meta_arg m);
+  compare = Stdlib.compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}
+let opaque_tdecl : Theory.tdecl Elpi.API.Conversion.t = API.OpaqueData.declare {
+  Elpi.API.OpaqueData.name = "meta-arg";
+  doc = "Symbol for arguments of a clone (currently cannot be inspected)";
+  pp = (fun fmt t -> Format.fprintf fmt "%s"
+        (match t.Theory.td_node with | Theory.Clone (t, _) -> t.th_name.Ident.id_string
+        | _ -> "Wrong embedder used!"));
+  compare = Stdlib.compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}
+
+(** Clones are not implemented! *)
+let tdecl_declaration : (Theory.tdecl,'a,'b) API.AlgebraicData.declaration = 
+  let open API.BuiltInData in {
+  ty = TyName "tdecl";
+  doc = "Theory declarations";
+  pp = Pretty.print_tdecl;
+  constructors = [
+   K("decl","Local or imported declaration",
+     A (decl,N),
+     B (fun x -> Theory.create_decl x),
+     M (fun ~ok ~ko tdecl ->
+       (match tdecl.td_node with | Theory.Decl d -> ok d | _ -> ko ())));
+   K("use","Use of theory",
+     A (theory,N),
+     B (fun x -> Theory.create_use x),
+     M (fun ~ok ~ko tdecl ->
+       (match tdecl.td_node with | Theory.Use t -> ok t | _ -> ko ())));
+   K("meta","Map of metas",
+     A (meta,A(list meta_arg,N)),
+     B (fun m args -> Theory.create_meta m args),
+     M (fun ~ok ~ko tdecl ->
+       (match tdecl.td_node with | Theory.Meta (a,args) -> ok a args | _ -> ko ())));
+   K("clone","Clone of theory",
+     A (opaque_tdecl, N),
+     B (fun t -> t),
+     M (fun ~ok ~ko td ->
+       (match td.td_node with | Theory.Clone (_,_) -> ok td | _ -> ko ())));
+  ]
+}
+
+let tdecl = API.AlgebraicData.declare tdecl_declaration
+
+(* Tasks are just lists of theory declarations *)
 let embed_task : Task.task API.Conversion.embedding =
+  let open API.ContextualConversion in
   fun ~depth st task ->
-  (API.BuiltInData.list decl).embed ~depth st (Task.task_decls task)
+  (API.BuiltInData.list @@ (!<) tdecl).embed ~depth st (Task.task_tdecls task)
 
 let readback_task : Task.task API.Conversion.readback =
+  let open API.ContextualConversion in
   fun ~depth st term ->
-    let st, decl_list, eg = (API.BuiltInData.list decl).readback ~depth st term in
-    let task = List.fold_left Task.add_decl None decl_list in
+    let st, tdecl_list, eg = (API.BuiltInData.list @@ (!<) tdecl).readback ~depth st term in
+    let task = List.fold_left Task.add_tdecl None tdecl_list in
     st, task, eg
 
 let task : Task.task API.Conversion.t = {
-  API.Conversion.ty = API.Conversion.TyName "list decl";
+  API.Conversion.ty = API.Conversion.TyName "list tdecl";
   pp = Pretty.print_task;
   pp_doc = (fun _fmt () -> ());
   readback = readback_task;
@@ -498,6 +573,7 @@ let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInData in
   let open Elpi.API.BuiltInPredicate in
+  let open Elpi.API.ContextualConversion in
   let open Elpi.API.BuiltInPredicate.Notation in
   [
     MLCode
@@ -581,6 +657,7 @@ let why3_builtin_declarations =
     MLData tysym;
     MLData tyvsym;
     MLData prsymbol;
+    MLDataC tdecl;
     MLData decl
     ]
  

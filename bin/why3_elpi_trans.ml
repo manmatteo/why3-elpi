@@ -6,12 +6,14 @@ let why3_transform_declarations =  fun (e : Env.env) ->
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInPredicate in
   let open Elpi.API.BuiltInPredicate.Notation in
-    [MLCode
+    [ LPDoc {|Predicates for building Why3 transformations|};
+      MLCode
       ( Pred ( "why3.get-env",
             Out  (env, "E",
             Easy "Get the environment in which the transformation is called" ),
             fun _ ~depth:_ -> !: (e)),
         DocAbove );
+  LPCode {|type transform string -> list tdecl -> list tdecl -> prop.|}]
 
 let debug_no_typecheck = Debug.register_flag ~desc:"Disable typechecking for Elpi transformations" "no_elpi_tc"
 
