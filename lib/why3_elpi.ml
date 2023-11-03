@@ -16,9 +16,19 @@ let falsec = Elpi.API.RawData.Constants.declare_global_symbol "bot"
 let truec = Elpi.API.RawData.Constants.declare_global_symbol "top"
 let itec = Elpi.API.RawData.Constants.declare_global_symbol "ite"
 
+let ident : Ident.ident Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  name = "ident";
+  doc = "Identifiers in Why3, treated as pretty printing hints. Note that they have no logical content, two idents are always equal in Why3: `x` = `y`";
+  pp = (fun fmt x -> Format.fprintf fmt "`%s`" x.Ident.id_string);
+  compare = (fun _ _ -> 0);
+  hash = (fun _ -> 0);
+  hconsed = false;
+  constants = [];
+}
+
 let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "env";
-  doc = "Embedding of type variables";
+  name = "env";
+  doc = "The current environment can be retrieved, for example during a transformation with why3.get-env";
   pp = (fun _ _ -> ());
   compare = (fun _ _ -> 0); (* envs are all the same! *)
   hash = Hashtbl.hash;
@@ -26,7 +36,7 @@ let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [];
 }
 let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "tyvsymbol";
+  name = "tyvsymbol";
   doc = "Embedding of type variables";
   pp = (Pretty.print_tv);
   compare = Ty.tv_compare;
@@ -35,7 +45,7 @@ let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [];
 }
 let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "tysymbol";
+  name = "tysymbol";
   doc = "Embedding of type symbols";
   pp = (fun fmt a -> Format.fprintf fmt "«%a»" Pretty.print_ts a);
   compare = Ty.ts_compare;
@@ -146,7 +156,8 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       let build_binders quant =
         List.fold_right (fun var (st, tm, eg) ->
           let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
-          st, mkApp quant ty_term [mkLam tm], eg @ eg1)
+          let st, vname, eg2 = ident.embed ~depth st var.vs_name in
+          st, mkApp quant vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
           vlist embedded_body in
       begin match q with
       | Term.Tforall -> build_binders allc
@@ -187,19 +198,20 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
      to call a `list term` conversion in a recursive call *)
   let aux_conversion : Term.vsymbol Mint.t -> Term.term API.Conversion.t = fun m -> {
     API.Conversion.ty = API.Conversion.TyName "term";
-    pp = Pretty.print_term; pp_doc = (fun _ () -> ()); embed = embed_term;
+    pp = Pretty.print_term; pp_doc = (fun _ () -> ()); embed = term.embed;
     readback = (fun ~depth st tm -> aux ~depth st tm m);
   }
   in
-  let build_quantified_body ~depth st typ bo map quant_builder =
+  let build_quantified_body ~depth st typ vname bo map quant =
     let st, typ, eg1 = ty.readback () () ~depth st typ in
-    let var = Term.create_vsymbol (Ident.id_fresh "x") typ in
+    let st, vname, eg2 = ident.readback ~depth st vname in
+    let var = Term.create_vsymbol (Ident.id_clone vname) typ in
     let map = Mint.add depth var map in
-    let st, bo, eg2 = aux ~depth st bo map in
+    let st, bo, eg3 = aux ~depth st bo map in
     (match bo.t_node with
-    | Term.Tquant (_, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
-      st, quant_builder (var::vlist) [] bo, eg1 @ eg2
-    | _ -> st, quant_builder [var] [] bo, eg1 @ eg2)
+    | Term.Tquant (quant, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
+      st, Term.t_quant_close quant (var::vlist) [] bo, eg1 @ eg2 @ eg3
+    | _ -> st, Term.t_quant_close quant [var] [] bo, eg1 @ eg2 @ eg3)
   in
 (*Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
   Format.printf "term: %a@." (Elpi.API.RawPp.term depth) tm; *)
@@ -234,20 +246,20 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     let st, tt2, eg2 = aux ~depth st t2 map in
     let st, tt3, eg3 = aux ~depth st t3 map in
     st,  Why3.Term.t_if tt1 tt2 tt3, eg1 @ eg2 @ eg3
-  | App (c, t1, []) when c = lsymbc -> (* To fix for firstorder? *)
-    let st, ls, eg = lsym.readback ~depth st t1 in
-    st, Why3.Term.t_app_infer ls [], eg
   | App (c, t1, []) when c = notc ->
     let st, t1, eg = aux ~depth st t1 map in
     st, Why3.Term.t_not t1, eg
-  | App (c, t1, [tl]) when c = applc ->
+  | App (c, t1, []) when c = lsymbc -> (* Predicate with no arguments *)
+    let st, ls, eg = lsym.readback ~depth st t1 in
+    st, Why3.Term.t_app_infer ls [], eg
+  | App (c, t1, [tl]) when c = applc ->(* Predicate with arguments *)
     let st, t1, eg1 = lsym.readback ~depth st t1 in
     let st, tl, eg2 = (API.BuiltInData.list (aux_conversion map)).readback ~depth st tl in
     st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
-  | App (c, typ, [bo]) when c = allc ->
-    build_quantified_body ~depth st typ bo map Why3.Term.t_forall_close
-  | App (c, typ, [bo]) when c = existsc ->
-    build_quantified_body ~depth st typ bo map Why3.Term.t_exists_close
+  | App (c, vname, [typ; bo]) when c = allc ->
+    announce "a" (build_quantified_body ~depth) st typ vname bo map Why3.Term.Tforall
+  | App (c, vname, [typ; bo]) when c = existsc ->
+    build_quantified_body ~depth st typ vname bo map Why3.Term.Texists
   | App (c, n, []) when c = intc -> (* Native integers *)
     let st, n, eg = API.BuiltInData.int.readback ~depth st n
     in st, Why3.Term.t_nat_const n, eg
@@ -273,8 +285,8 @@ type and term -> term -> term.
 type or  term -> term -> term.
 type imp term -> term -> term.
 type iff term -> term -> term.
-type all ty -> (term -> term) -> term.
-type ex  ty -> (term -> term) -> term.
+type all ident -> ty -> (term -> term) -> term.
+type ex  ident -> ty -> (term -> term) -> term.
 type ite term -> term -> term -> term.
 type not term -> term.
 type top term.
@@ -349,7 +361,7 @@ let logicdeclc = Elpi.API.RawData.Constants.declare_global_symbol "logic"
 let embed_logic_decl : Decl.logic_decl API.Conversion.embedding = fun ~depth st (ls,def) ->
   let open API.RawData in
 (*   Format.printf "embedding %a in context %s@." Pretty.print_term tm (List.fold_left (fun a v -> a ^ (Format.asprintf "%a " Pretty.print_vs v)) "" vars); *)
-  let st, ax, eg1 = embed_term ~depth st (Decl.ls_defn_axiom def) in
+  let st, ax, eg1 = term.embed ~depth st (Decl.ls_defn_axiom def) in
   let st, ls, eg2 = lsym.embed ~depth st ls in
   st, mkApp logicdeclc ls [ax], eg1@eg2
 let readback_logic_decl : Decl.logic_decl API.Conversion.readback = fun ~depth st term ->
@@ -364,7 +376,7 @@ let readback_logic_decl : Decl.logic_decl API.Conversion.readback = fun ~depth s
     let st, ax, eg2 = readback_term ~depth st ax in
     (match (ls_defn_of_axiom ax) with
     | Some ax -> st, ax, eg1@eg2
-    | None -> unsupported "Couldn't read back logic declaration from axiom")
+    | None -> unsupported (Format.asprintf "Couldn't read back logic declaration from axiom %a" Pretty.print_term ax))
   | _ -> unsupported "invalid"
 
 let logic_decl : Decl.logic_decl API.Conversion.t = {
@@ -405,7 +417,7 @@ let embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
     in st, mkApp decllc ll [], eg
   | Decl.Dprop (k,s,t) ->
     let st, prsym, eg1 = prsymbol.Elpi.API.Conversion.embed ~depth st s in
-    let st, tt, eg2 = embed_term ~depth st t in
+    let st, tt, eg2 = term.embed ~depth st t in
     let konst = (match k with | Plemma -> plemmac | Paxiom -> paxiomc | Pgoal  -> pgoalc)
     in st, mkApp konst prsym [tt], eg1@eg2
   | Decl.Dind _ -> unsupported "dind"
@@ -491,6 +503,8 @@ let meta_arg : Theory.meta_arg Elpi.API.Conversion.t = API.OpaqueData.declare {
   hconsed = false;
   constants = [];
 }
+
+(* Hide clones *)
 let opaque_tdecl : Theory.tdecl Elpi.API.Conversion.t = API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "meta-arg";
   doc = "Symbol for arguments of a clone (currently cannot be inspected)";
@@ -503,7 +517,6 @@ let opaque_tdecl : Theory.tdecl Elpi.API.Conversion.t = API.OpaqueData.declare {
   constants = [];
 }
 
-(** Clones are not implemented! *)
 let tdecl_declaration : (Theory.tdecl,'a,'b) API.AlgebraicData.declaration = 
   let open API.BuiltInData in {
   ty = TyName "tdecl";
@@ -539,12 +552,13 @@ let tdecl = API.AlgebraicData.declare tdecl_declaration
 let embed_task : Task.task API.Conversion.embedding =
   let open API.ContextualConversion in
   fun ~depth st task ->
-  (API.BuiltInData.list @@ (!<) tdecl).embed ~depth st (Task.task_tdecls task)
+  (API.BuiltInData.list !< tdecl).embed ~depth st (Task.task_tdecls task)
 
 let readback_task : Task.task API.Conversion.readback =
   let open API.ContextualConversion in
   fun ~depth st term ->
-    let st, tdecl_list, eg = (API.BuiltInData.list @@ (!<) tdecl).readback ~depth st term in
+    let st, tdecl_list, eg =
+      (API.BuiltInData.list !< tdecl).readback ~depth st term in
     let task = List.fold_left Task.add_tdecl None tdecl_list in
     st, task, eg
 
@@ -650,6 +664,10 @@ let why3_builtin_declarations =
         DocAbove );
         
     MLData env;
+    MLData meta;
+    MLData meta_arg;
+    MLData theory;
+    MLData ident;
     MLData lsym;
     MLData vsym;
     MLData term;
