@@ -127,11 +127,9 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tapp (ls, args) -> (* constant with arguments *)
     let st, lsy, eg = lsym.Elpi.API.Conversion.embed st ~depth ls in
     let st, argslist, egs = List.fold_right (fun arg (st, args, egs) ->
-      let st, tt, eg = aux ~depth st arg map in 
-      st, tt::args, eg@egs
-    ) args (st,[],eg) in
-    let argslist = List.fold_right (fun arg acc ->
-      mkCons arg acc) argslist mkNil in
+      let st, tt, eg = aux ~depth st arg map in
+      st, mkCons tt args, eg@egs
+    ) args (st,mkNil,eg) in
     st, mkApp applc lsy [argslist], egs 
   | Term.Tlet (_, _)
   -> unsupported "let binder"
@@ -146,9 +144,9 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       (* Update the variable map (and depth) by adding each variable in the
          order in which it appears in the list of vsymbol (vlist) *)
       let map,depth =
-        List.fold_right (fun var (map,depth) ->
+        List.fold_left (fun (map,depth) var ->
           (Mvs.add var depth map, depth + 1) )
-          vlist (map, depth) in
+          (map, depth) vlist in
       (* The recursive call, with the updated map *)
       let embedded_body = (aux ~depth st term map) in
       (* Close all the newly created binders with the appropriate quantifer constant
@@ -257,7 +255,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     let st, tl, eg2 = (API.BuiltInData.list (aux_conversion map)).readback ~depth st tl in
     st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
   | App (c, vname, [typ; bo]) when c = allc ->
-    announce "a" (build_quantified_body ~depth) st typ vname bo map Why3.Term.Tforall
+    build_quantified_body ~depth st typ vname bo map Why3.Term.Tforall
   | App (c, vname, [typ; bo]) when c = existsc ->
     build_quantified_body ~depth st typ vname bo map Why3.Term.Texists
   | App (c, n, []) when c = intc -> (* Native integers *)
