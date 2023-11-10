@@ -16,54 +16,77 @@ let falsec = Elpi.API.RawData.Constants.declare_global_symbol "bot"
 let truec = Elpi.API.RawData.Constants.declare_global_symbol "top"
 let itec = Elpi.API.RawData.Constants.declare_global_symbol "ite"
 
+(* Printer for Ident-like Why3 builtins: ident, variables...
+   These are mostly a layer over Ident, and can be seen as names *)
+let pp_why_ident p = fun fmt x -> Format.fprintf fmt "`%a`" p x 
+(* Printer for Why3 names that include more content: logic symbols, data
+   types...  This content (typing for lsymbols, constructors for data types...)
+   is accessed via builtin predicates  *)
+let pp_why_data p = fun fmt x -> Format.fprintf fmt "«%a»" p x 
+
 let ident : Ident.ident Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   name = "ident";
-  doc = "Identifiers in Why3, treated as pretty printing hints. Note that they have no logical content, two idents are always equal in Why3: `x` = `y`";
-  pp = (fun fmt x -> Format.fprintf fmt "`%s`" x.Ident.id_string);
-  compare = (fun _ _ -> 0);
-  hash = (fun _ -> 0);
+  doc = "Why3 identifiers. Can be inspected or built via builtin predicates, for example for accessing their attributes.";
+  pp = pp_why_ident (fun fmt x -> Format.fprintf fmt "%s" x.Ident.id_string);
+  compare = Ident.id_compare;
+  hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
 }
+(* Unused for now *)
+(*
+let attribute : Ident.attribute Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  name = "ident";
+  doc = "Attributes of Why3 identifiers. Can be created with builtin predicates. Only manually exported attributes are known to the API.";
+  pp = (fun fmt x -> Format.fprintf fmt "`%s`" x.Ident.attr_string);
+  compare = Ident.attr_compare;
+  hash = Ident.attr_hash;
+  hconsed = false;
+  constants = [];
+} *)
 
 let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   name = "env";
   doc = "The current environment can be retrieved, for example during a transformation with why3.get-env";
-  pp = (fun _ _ -> ());
+  pp = (fun fmt _ -> Format.fprintf fmt "env");
   compare = (fun _ _ -> 0); (* envs are all the same! *)
-  hash = Hashtbl.hash;
+  hash = (fun e -> Weakhtbl.tag_hash (Env.env_tag e));
   hconsed = false;
   constants = [];
 }
-let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  name = "tyvsymbol";
-  doc = "Embedding of type variables";
-  pp = (Pretty.print_tv);
-  compare = Ty.tv_compare;
-  hash = Hashtbl.hash;
-  hconsed = false;
-  constants = [];
+let tyvsym : (Ty.tvsymbol, 'a, 'b) API.ContextualConversion.t =
+  let open API.ContextualConversion in
+  API.AlgebraicData.declare {
+  ty = TyName "tv";
+  doc = "Embedding of type variables, exposing their Ident.";
+  pp = Pretty.print_tv;
+  constructors = [
+   K("tv","Type variable",
+     A (ident,N),
+     B (fun id -> Ty.create_tvsymbol (Ident.id_clone id)),
+     M (fun ~ok ~ko:_ tv -> ok tv.tv_name));
+  ]
 }
 let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   name = "tysymbol";
-  doc = "Embedding of type symbols";
-  pp = (fun fmt a -> Format.fprintf fmt "«%a»" Pretty.print_ts a);
+  doc = "Embedding of type symbols. Internal information (Ident, arguments) is not exposed.";
+  pp = pp_why_data Pretty.print_ts;
   compare = Ty.ts_compare;
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [] (* Are these helpful? [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
-let ty_declaration : (Ty.ty,'a,'b) API.AlgebraicData.declaration = 
+let ty : (Ty.ty, 'a, 'b) API.ContextualConversion.t =
   let open API.BuiltInData in
   let open API.ContextualConversion in
-  {
+  API.AlgebraicData.declare {
   ty = TyName "ty";
   doc = "Embedding of types";
   pp = Pretty.print_ty;
   constructors = [
    K("tvar","Type variable",
-     A (tyvsym,N),
+     A ((!<) tyvsym,N),
      B Ty.ty_var,
      M (fun ~ok ~ko ty ->
        (match ty.ty_node with | Ty.Tyvar v -> ok v | _ -> ko ())));
@@ -75,17 +98,15 @@ let ty_declaration : (Ty.ty,'a,'b) API.AlgebraicData.declaration =
   ]
 }
 
-let ty = API.AlgebraicData.declare ty_declaration
-
 (** Embedding of lsymbols. Note: we are using OpaqueData, so argument and value
     types are not exposed to the API. They can be inspected or manipulated by
     using navite predicates. *)
 let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   Elpi.API.OpaqueData.name = "lsymbol";
-  doc = "Embedding of predicate symbols";
-  pp = Pretty.print_ls;
+  doc = "Embedding of predicate symbols. Name, argument and value type can be accessed via native predicates.";
+  pp = pp_why_data Pretty.print_ls;
   compare = Term.ls_compare;
-  hash = Hashtbl.hash;
+  hash = Term.ls_hash;
   hconsed = false;
   constants = [];
 }
@@ -93,15 +114,14 @@ let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
 (** As before, we embed variable symbols as an OpaqueData so their type can only
     be inspected or manipulated via native predicates. *)
 let vsym : Term.vsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "vsymbol";
+  Elpi.API.OpaqueData.name = "var";
   doc = "Embedding of variable symbols";
-  pp = Pretty.print_vs;
+  pp = pp_why_ident Pretty.print_vs;
   compare = Term.vs_compare;
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
 }
-
 
 let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   let unsupported msg =
@@ -154,7 +174,7 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       let build_binders quant =
         List.fold_right (fun var (st, tm, eg) ->
           let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
-          let st, vname, eg2 = ident.embed ~depth st var.vs_name in
+          let st, vname, eg2 = vsym.embed ~depth st var in
           st, mkApp quant vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
           vlist embedded_body in
       begin match q with
@@ -200,16 +220,15 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     readback = (fun ~depth st tm -> aux ~depth st tm m);
   }
   in
-  let build_quantified_body ~depth st typ vname bo map quant =
-    let st, typ, eg1 = ty.readback () () ~depth st typ in
-    let st, vname, eg2 = ident.readback ~depth st vname in
-    let var = Term.create_vsymbol (Ident.id_clone vname) typ in
+  let build_quantified_body ~depth st _typ vname bo map quant =
+    (* note that reading back the type is not necessary, since it is already in the embedded vsymb *)
+    let st, var, eg2 = vsym.readback ~depth st vname in
     let map = Mint.add depth var map in
     let st, bo, eg3 = aux ~depth st bo map in
     (match bo.t_node with
     | Term.Tquant (quant, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
-      st, Term.t_quant_close quant (var::vlist) [] bo, eg1 @ eg2 @ eg3
-    | _ -> st, Term.t_quant_close quant [var] [] bo, eg1 @ eg2 @ eg3)
+      st, Term.t_quant_close quant (var::vlist) [] bo, eg2 @ eg3
+    | _ -> st, Term.t_quant_close quant [var] [] bo, eg2 @ eg3)
   in
 (*Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
   Format.printf "term: %a@." (Elpi.API.RawPp.term depth) tm; *)
@@ -283,8 +302,8 @@ type and term -> term -> term.
 type or  term -> term -> term.
 type imp term -> term -> term.
 type iff term -> term -> term.
-type all ident -> ty -> (term -> term) -> term.
-type ex  ident -> ty -> (term -> term) -> term.
+type all var  -> ty   -> (term -> term) -> term.
+type ex  var  -> ty   -> (term -> term) -> term.
 type ite term -> term -> term -> term.
 type not term -> term.
 type top term.
@@ -303,10 +322,15 @@ let prsymbol : Decl.prsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare
   constants = [];
 }
 
+
+(* The current implementation is partial, so for the moment we fallback to an
+opaque embedding of data decl*)
+
+(* 
 let defc = Elpi.API.RawData.Constants.declare_global_symbol "def"
 let def2c = Elpi.API.RawData.Constants.declare_global_symbol "def2"
 
-let embed_data_decl : Decl.data_decl API.Conversion.embedding = fun ~depth st ddecls ->
+let embed_data_decl : Decl.data_decl API.Conversion.embedding = fun ~depth st (ddecls : Decl.data_decl) ->
   let open Elpi.API.RawData in
   let (ty, kons) = ddecls in
   let st, tsymb, eg1 = tysym.embed ~depth st ty in
@@ -314,7 +338,7 @@ let embed_data_decl : Decl.data_decl API.Conversion.embedding = fun ~depth st dd
     List.fold_left (fun (st,t,eg) (ls, ll) ->
       let st, projlist, eg1 =
         List.fold_left (fun (st,ll,eg) maybe_ls -> (* Building a list of projection for the given symbol *)
-          match maybe_ls with None -> st,ll,eg
+          match maybe_ls with None -> st,ll,eg (** TODO: Important! Store a placeholder for the None case, and update readback accordingly *)
           | Some s -> let a, b, c = lsym.embed ~depth st s in a, mkCons b ll, c@eg)
         (st, mkNil, []) ll
       in let st, lsymb, eg2 = lsym.embed ~depth st ls in
@@ -332,25 +356,27 @@ let readback_data_decl : Decl.data_decl API.Conversion.readback = fun ~depth st 
   | App (h, tsymb, [lkons]) when h=def2c->
     let st, tsymb, eg = tysym.readback ~depth st tsymb in
     let lkons = API.Utils.lp_list_to_list ~depth lkons in
-    let st, lkons, eg = List.fold_left (fun (st, cur, egs) kons ->
+    let st, lkons, eg = List.fold_right (fun kons (st, cur, egs) ->
       match (look ~depth kons) with
-      | App (h,lsymb,[projlist]) when h=defc -> 
+      | App (h,lsymb,[projlist]) when h=defc ->
         let st, lsymb, eg1 = lsym.readback ~depth st lsymb in
         let st, projlist, eg2 = (API.BuiltInData.list lsym).readback ~depth st projlist in
         st, (lsymb, projlist)::cur, eg1@eg2@egs
       | _ -> unsupported "")
-    (st, [], eg) lkons
+    lkons (st, [], eg)
     in
     let lkons = (List.map (fun (ls,lk) -> ls, List.map (fun x -> Some x) lk) lkons) in
     st, (tsymb, lkons), eg
-  | _ -> unsupported "")
+  | _ -> unsupported "") *)
 
-let data_decl : Decl.data_decl API.Conversion.t = {
-  pp = Pretty.print_data_decl;
-  ty = API.Conversion.TyName "data_decl";
-  pp_doc = (fun fmt () -> Format.fprintf fmt "");
-  readback = readback_data_decl;
-  embed = embed_data_decl;
+let data_decl : Decl.data_decl API.Conversion.t = Elpi.API.OpaqueData.declare {
+  name = "data_decl";
+  pp = pp_why_data (fun fmt (x, _) -> Format.fprintf fmt "%a" Pretty.print_ts x);
+  doc = "";
+  compare = compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
 }
 
 (** Logic declarations are currently embedded by obtaining and reading back
@@ -400,7 +426,7 @@ let embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   let open Elpi.API.RawData in
   let open Decl in
   let _dtag = decl.d_tag in     (* TODO *)
-  let _dnews = decl.d_news in   (* TODO! Important *) (*   Format.printf "The idents introduced in decl: %s@." (Ident.Sid.fold (fun id str -> id.id_string ^ "," ^ str) _dnews ""); *)
+  let _dnews = decl.d_news in   (* TODO! Useful for bound symbols *) (*   Format.printf "The idents introduced in decl: %s@." (Ident.Sid.fold (fun id str -> id.id_string ^ "," ^ str) _dnews ""); *)
   match decl.d_node with
   | Decl.Dtype ty -> let st, tsymb, eg = tysym.embed ~depth st ty in
     st, mkApp tydeclc tsymb [], eg
@@ -447,6 +473,7 @@ let readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl ->
     st, Decl.create_ty_decl ts, eg
   | App (c, dlist, []) when c = datac -> (* Algebraic data *)
     let st, dlist, eg = (API.BuiltInData.list data_decl).readback ~depth st dlist in
+    (* List.iter (Format.printf "obtained %a @." Pretty.print_data_decl) dlist; *)
     st, Decl.create_data_decl dlist, eg
   | App (c, llist, []) when c = decllc -> (* Defined predicate *)
     let st, dlist, eg = (API.BuiltInData.list logic_decl).readback ~depth st llist in
@@ -568,19 +595,6 @@ let task : Task.task API.Conversion.t = {
   embed = embed_task;
 }
 
-(* let lpq : Elpi.API.Quotation.quotation = fun ~depth st _loc text ->
-  let open Parsing in
-  let ast = Parser.Lp.parse_string "xxx" ("type " ^ text ^ ";") in
-  match ast |> Stream.next |> fun x -> x.Common.Pos.elt with
-  | Syntax.P_query { Common.Pos.elt = Syntax.P_query_infer(t,_); _ } ->
-      (*Printf.eprintf "Q %s\n" text;*)
-      let t, pats = !scope_ref t in
-      let st, t, _ = embed_term ~pats ~depth st t in
-      st, t
-  | _ -> assert false
-
-let () = Quotation.set_default_quotation lpq *)
-
 let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInData in
@@ -602,6 +616,12 @@ let why3_builtin_declarations =
             Easy "Pretty print a declaration using the native pretty printer" )),
             fun d _ ~depth:_ -> !: (Format.asprintf "%a" Pretty.print_decl d )),
         DocAbove );
+        MLCode (Pred ("why3.create-ident",
+            In (string, "S",
+            Out (ident, "I",
+            Easy "Create and register a fresh ident from a string" )),
+            fun name _ ~depth:_ -> !: (Ident.id_register (Ident.id_fresh name))),
+            DocAbove);
     MLCode
       ( Pred ( "why3.create-prsymbol",
             In  (string, "S",
@@ -621,7 +641,7 @@ let why3_builtin_declarations =
       ( Pred ( "why3.create-lsymb",
             In  (string,   "N",
             In  (list @@ (!<) ty,  "TS",
-            CIn  (ty,  "T",
+            CIn (ty,  "T",
             Out (lsym,       "N",
             Easy "Axiomatize a function symbol with name N, type T and argument types TS" )))),
             fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts (Some t))),
@@ -633,6 +653,13 @@ let why3_builtin_declarations =
             Easy "Get the type of a variable" )),
             fun var _ ~depth:_ -> !: (var.vs_ty)),
         DocAbove );
+    MLCode
+      (Pred ("why3.lsymb-name",
+            In (lsym, "L",
+            Out (ident, "S",
+            Easy "Get the Ident of a predicate symbol")),
+            fun s _ ~depth:_ -> !: (s.ls_name)),
+            DocAbove);
     MLCode
       ( Pred ( "why3.lsymb-type",
             In  (lsym, "L",
@@ -654,11 +681,36 @@ let why3_builtin_declarations =
             In  (list string, "N",
             In  (string, "S",
             Out (lsym, "L",
-            Easy "Look for a symbol in the environment. The theory T and namespace N where the symbol should be looked for need to be provided." ))))),
+            Easy "\nLook for a symbol in the environment. The theory T and\
+            namespace N where the symbol should be looked for need to be\
+            provided." ))))),
             fun e t n s _ ~depth:_ -> !: (
-              Format.printf "Looking for %s in %s@." s t;
               let theory = Env.read_theory e n t in
               Theory.ns_find_ls theory.Theory.th_export [s])),
+        DocAbove );
+    MLCode
+      (Pred ("why3.var-name",
+            In (vsym, "V",
+            Out (ident, "S",
+            Easy "Get the Ident of a variable symbol")),
+            fun s _ ~depth:_ -> !: (s.vs_name)),
+            DocAbove);
+    MLCode
+      (Pred ("why3.pr-name",
+            In (prsymbol, "V",
+            Out (ident, "S",
+            Easy "Get the Ident of a proposition declaration symbol")),
+            fun s _ ~depth:_ -> !: (s.pr_name)),
+            DocAbove);
+    MLCode
+      ( Pred ( "why3.get-attrs",
+            In  (ident, "I",
+            Out (list string, "L",
+            Easy "\nObtain a list of strings corresponding to the attributes of an\
+            identifier. Useful for filtering based on an attribute name,\
+            although the underlying attributes are currently not exposed through\
+            the API." )),
+            fun i _ ~depth:_ -> !: (List.map (fun attr -> attr.Ident.attr_string) (Ident.Sattr.elements i.id_attrs) )),
         DocAbove );
         
     MLData env;
@@ -671,7 +723,7 @@ let why3_builtin_declarations =
     MLData term;
     MLDataC ty;
     MLData tysym;
-    MLData tyvsym;
+    MLDataC tyvsym;
     MLData prsymbol;
     MLDataC tdecl;
     MLData decl

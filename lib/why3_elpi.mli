@@ -9,7 +9,7 @@ val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
 val document : Elpi.API.BuiltIn.declaration list -> unit
 
 (** Other embeddings: constants (ty/l symbols) and variables for types and terms *)
-val tyvsym : Why3.Ty.tvsymbol Elpi.API.Conversion.t
+val tyvsym : (Why3.Ty.tvsymbol,unit,unit) Elpi.API.ContextualConversion.t
 val tysym : Why3.Ty.tysymbol Elpi.API.Conversion.t
 val lsym : Why3.Term.lsymbol Elpi.API.Conversion.t
 val vsym : Why3.Term.vsymbol Elpi.API.Conversion.t
