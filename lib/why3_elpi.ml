@@ -1,6 +1,7 @@
 open Why3
 open Elpi
 (* Constants for Why3 HOAS *)
+let lambc = Elpi.API.RawData.Constants.declare_global_symbol "lam"
 let andc = Elpi.API.RawData.Constants.declare_global_symbol "and"
 let orc = Elpi.API.RawData.Constants.declare_global_symbol "or"
 let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
@@ -129,6 +130,12 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   in
   let open Elpi.API.RawData in
   let open Term in
+  let build_binders binder vlist embedded_body =
+    List.fold_right (fun var (st, tm, eg) ->
+      let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
+      let st, vname, eg2 = vsym.embed ~depth st var in
+      st, mkApp binder vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
+      vlist embedded_body in
   let rec aux ~depth st term (map : constant Mvs.t) =
   match term.t_node with
   | Term.Tvar v ->
@@ -155,7 +162,11 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   -> unsupported "let binder"
   | Term.Tcase (_, _)
   -> unsupported "case"
-  | Term.Teps _ -> unsupported "epsilon/function"
+  | Term.Teps t ->
+    let var, term = Term.t_open_bound t in
+    let updated_map = Mvs.add var depth map in
+    let t = aux ~depth:(depth + 1) st term updated_map in
+    build_binders lambc [var] t
   | Term.Tquant (q, tq) ->
     let (vlist,trigger,term) = Term.t_open_quant tq in
     begin match trigger with
@@ -168,18 +179,11 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
           (Mvs.add var depth map, depth + 1) )
           (map, depth) vlist in
       (* The recursive call, with the updated map *)
-      let embedded_body = (aux ~depth st term map) in
-      (* Close all the newly created binders with the appropriate quantifer constant
-         at the according type *)
-      let build_binders quant =
-        List.fold_right (fun var (st, tm, eg) ->
-          let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
-          let st, vname, eg2 = vsym.embed ~depth st var in
-          st, mkApp quant vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
-          vlist embedded_body in
+      let embedded_body = aux ~depth st term map in
+      (* Close binders with the appropriate quantifer constant at the according type *)
       begin match q with
-      | Term.Tforall -> build_binders allc
-      | Term.Texists -> build_binders existsc
+      | Term.Tforall -> build_binders allc vlist embedded_body
+      | Term.Texists -> build_binders existsc vlist embedded_body
       end
     end
   | Term.Tif (t1, t2, t3) ->
@@ -221,7 +225,8 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   }
   in
   let build_quantified_body ~depth st _typ vname bo map quant =
-    (* note that reading back the type is not necessary, since it is already in the embedded vsymb *)
+    (* note that reading back the type is not necessary, since it is already in the embedded vsymb,
+       as long as vsymb is CData *)
     let st, var, eg2 = vsym.readback ~depth st vname in
     let map = Mint.add depth var map in
     let st, bo, eg3 = aux ~depth st bo map in
@@ -277,6 +282,11 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     build_quantified_body ~depth st typ vname bo map Why3.Term.Tforall
   | App (c, vname, [typ; bo]) when c = existsc ->
     build_quantified_body ~depth st typ vname bo map Why3.Term.Texists
+  | App (c, vname, [_typ; bo]) when c = lambc -> (* type is in vsymb as cdata *)
+    let st, var, eg2 = vsym.readback ~depth st vname in
+    let map = Mint.add depth var map in
+    let st, bo, eg3 = aux ~depth st bo map in
+    st, Term.t_eps_close var bo, eg2 @ eg3
   | App (c, n, []) when c = intc -> (* Native integers *)
     let st, n, eg = API.BuiltInData.int.readback ~depth st n
     in st, Why3.Term.t_nat_const n, eg
