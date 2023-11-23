@@ -21,7 +21,7 @@ let query (arg: string) (e: Env.env) (t : Task.task) =
   let transform_builtins = why3_builtin_declarations @ why3_transform_declarations e in
   document transform_builtins;
   let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi" (transform_builtins @ Elpi.Builtin.std_declarations)] in
-  let elpi = (API.Setup.init ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
+  let elpi = (API.Setup.init ~state:Why3_elpi.descriptor ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
   let loc = Elpi.API.Ast.Loc.initial "(elpi)" in
   let ast = Elpi.API.Parse.program ~elpi ~files:["transform.elpi"] in
   let prog =

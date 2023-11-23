@@ -1,7 +1,17 @@
 open Why3
 open Elpi
+
+(* A state component linking Why3 variable symbols and ELPI bound variables *)
+let descriptor = Elpi.API.State.new_state_descriptor ()
+let varmap : (int Term.Mvs.t) API.State.component =
+  API.State.declare_component ~descriptor
+    ~name:"varmap"
+    ~init:(fun _ -> Term.Mvs.empty)
+    ~pp:(fun _ _ -> ())
+    ~start:(fun x -> x) ()
+
 (* Constants for Why3 HOAS *)
-let lambc = Elpi.API.RawData.Constants.declare_global_symbol "lam"
+let epsc = Elpi.API.RawData.Constants.declare_global_symbol "eps"
 let andc = Elpi.API.RawData.Constants.declare_global_symbol "and"
 let orc = Elpi.API.RawData.Constants.declare_global_symbol "or"
 let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
@@ -55,18 +65,14 @@ let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   hconsed = false;
   constants = [];
 }
-let tyvsym : (Ty.tvsymbol, 'a, 'b) API.ContextualConversion.t =
-  let open API.ContextualConversion in
-  API.AlgebraicData.declare {
-  ty = TyName "tv";
-  doc = "Embedding of type variables, exposing their Ident.";
-  pp = Pretty.print_tv;
-  constructors = [
-   K("tv","Type variable",
-     A (ident,N),
-     B (fun id -> Ty.create_tvsymbol (Ident.id_clone id)),
-     M (fun ~ok ~ko:_ tv -> ok tv.tv_name));
-  ]
+let tyvsym : Ty.tvsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
+  name = "tv";
+  doc = "Variables in polymorphic types.";
+  pp = pp_why_ident Pretty.print_tv;
+  compare = Ty.tv_compare;
+  hash = Ty.tv_hash;
+  hconsed = false;
+  constants = [];
 }
 let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   name = "tysymbol";
@@ -75,7 +81,7 @@ let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   compare = Ty.ts_compare;
   hash = Hashtbl.hash;
   hconsed = false;
-  constants = [] (* Are these helpful? [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
+  constants = [] (* Are these helpful? [("arr", Ty.ts_func); ("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
 let ty : (Ty.ty, 'a, 'b) API.ContextualConversion.t =
@@ -87,7 +93,7 @@ let ty : (Ty.ty, 'a, 'b) API.ContextualConversion.t =
   pp = Pretty.print_ty;
   constructors = [
    K("tvar","Type variable",
-     A ((!<) tyvsym,N),
+     A (tyvsym,N),
      B Ty.ty_var,
      M (fun ~ok ~ko ty ->
        (match ty.ty_node with | Ty.Tyvar v -> ok v | _ -> ko ())));
@@ -115,9 +121,7 @@ let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
 (** As before, we embed variable symbols as an OpaqueData so their type can only
     be inspected or manipulated via native predicates. *)
 let vsym : Term.vsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
-  Elpi.API.OpaqueData.name = "var";
-  doc = "Embedding of variable symbols";
-  pp = pp_why_ident Pretty.print_vs;
+  Elpi.API.OpaqueData.name = "var"; doc = "Embedding of variable symbols"; pp = pp_why_ident Pretty.print_vs;
   compare = Term.vs_compare;
   hash = Hashtbl.hash;
   hconsed = false;
@@ -135,12 +139,12 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
       let st, vname, eg2 = vsym.embed ~depth st var in
       st, mkApp binder vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
-      vlist embedded_body in
-  let rec aux ~depth st term (map : constant Mvs.t) =
+      vlist embedded_body
+  in
   match term.t_node with
   | Term.Tvar v ->
-    (try st, mkBound @@ Mvs.find v map, []
-    with Not_found -> unsupported "unbound variable")
+    (try API.State.get varmap st |> Mvs.find v |> fun i -> st, mkBound i, []
+    with Not_found -> unsupported (Format.asprintf "unbound variable %a" Pretty.print_vs v))
   | Term.Tconst c ->
     begin match c with
     (* TODO: We would prefer to use BigInt directly. to_int can raise overflow exceptions *)
@@ -154,7 +158,7 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tapp (ls, args) -> (* constant with arguments *)
     let st, lsy, eg = lsym.Elpi.API.Conversion.embed st ~depth ls in
     let st, argslist, egs = List.fold_right (fun arg (st, args, egs) ->
-      let st, tt, eg = aux ~depth st arg map in
+      let st, tt, eg = embed_term ~depth st arg in
       st, mkCons tt args, eg@egs
     ) args (st,mkNil,eg) in
     st, mkApp applc lsy [argslist], egs 
@@ -164,9 +168,9 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   -> unsupported "case"
   | Term.Teps t ->
     let var, term = Term.t_open_bound t in
-    let updated_map = Mvs.add var depth map in
-    let t = aux ~depth:(depth + 1) st term updated_map in
-    build_binders lambc [var] t
+    let st = API.State.update varmap st (Mvs.add var depth) in
+    let t = embed_term ~depth:(depth + 1) st term in
+    build_binders epsc [var] t
   | Term.Tquant (q, tq) ->
     let (vlist,trigger,term) = Term.t_open_quant tq in
     begin match trigger with
@@ -174,12 +178,12 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
     | [] -> 
       (* Update the variable map (and depth) by adding each variable in the
          order in which it appears in the list of vsymbol (vlist) *)
-      let map,depth =
-        List.fold_left (fun (map,depth) var ->
-          (Mvs.add var depth map, depth + 1) )
-          (map, depth) vlist in
+      let st,depth =
+        List.fold_left (fun (st,depth) var ->
+          (API.State.update varmap st (Mvs.add var depth), depth + 1) )
+          (st, depth) vlist in
       (* The recursive call, with the updated map *)
-      let embedded_body = aux ~depth st term map in
+      let embedded_body = embed_term ~depth st term in
       (* Close binders with the appropriate quantifer constant at the according type *)
       begin match q with
       | Term.Tforall -> build_binders allc vlist embedded_body
@@ -187,38 +191,34 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       end
     end
   | Term.Tif (t1, t2, t3) ->
-    let st, t1, eg1 = aux ~depth st t1 map in
-    let st, t2, eg2 = aux ~depth st t2 map in
-    let st, t3, eg3 = aux ~depth st t3 map in
+    let st, t1, eg1 = embed_term ~depth st t1 in
+    let st, t2, eg2 = embed_term ~depth st t2 in
+    let st, t3, eg3 = embed_term ~depth st t3 in
     st, mkApp itec t1 [t2;t3], eg1@eg2@eg3
   | Term.Ttrue -> st, mkConst truec, []
   | Term.Tfalse -> st, mkConst falsec, []
   | Term.Tnot t ->
-    let st, tm, eg = aux ~depth st t map in
+    let st, tm, eg = embed_term ~depth st t in
     st, (mkApp notc tm []), eg
   | Term.Tbinop (op, t1, t2) ->
-    let st, t1, eg1 = aux ~depth st t1 map in
-    let st, t2, eg2 = aux ~depth st t2 map in
-    let eg = eg1 @ eg2 in
-  match op with
-  | Term.Tand ->     st, (mkApp andc t1 [t2]), eg
-  | Term.Tor ->      st, (mkApp orc  t1 [t2]), eg
-  | Term.Timplies -> st, (mkApp impc t1 [t2]), eg
-  | Term.Tiff ->     st, (mkApp iffc t1 [t2]), eg
-  in aux ~depth st term Term.Mvs.empty
+    let st, t1, eg1 = embed_term ~depth st t1 in
+    let st, t2, eg2 = embed_term ~depth st t2 in
+    let op = match op with
+    | Term.Tand -> andc | Term.Tor ->  orc  
+    | Term.Timplies -> impc | Term.Tiff -> iffc
+    in st, mkApp op t1 [t2], eg1 @ eg2
 
-let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
+and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   let unsupported msg =
-  Loc.errorm "Readback not supported for term: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
+  Loc.errorm "Readback not supported for term:@ (%s@, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
   let open API.RawData in
   (* The correspondence between De Brujin levels and Why3 variables during
      readback is stored in a Wstdlib.Mint map *)
-  let open Wstdlib in
-  let rec aux ~depth st tm (map : Term.vsymbol Mint.t) =
+  let rec aux ~depth st tm (map : Term.vsymbol Constants.Map.t) =
   (* Instrument a full conversion dependent on a variable map, so that it can be used
      to call a `list term` conversion in a recursive call *)
-  let aux_conversion : Term.vsymbol Mint.t -> Term.term API.Conversion.t = fun m -> {
+  let aux_conversion : Term.vsymbol Constants.Map.t -> Term.term API.Conversion.t = fun m -> {
     API.Conversion.ty = API.Conversion.TyName "term";
     pp = Pretty.print_term; pp_doc = (fun _ () -> ()); embed = term.embed;
     readback = (fun ~depth st tm -> aux ~depth st tm m);
@@ -228,7 +228,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     (* note that reading back the type is not necessary, since it is already in the embedded vsymb,
        as long as vsymb is CData *)
     let st, var, eg2 = vsym.readback ~depth st vname in
-    let map = Mint.add depth var map in
+    let map = Constants.Map.add depth var map in
     let st, bo, eg3 = aux ~depth st bo map in
     (match bo.t_node with
     | Term.Tquant (quant, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
@@ -242,7 +242,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | Const c when c == falsec -> st, Why3.Term.t_false, []
   | Const c when c == lsymbc -> unsupported "const"
   | Const c when c>=0 ->
-    st, Why3.Term.t_var (Mint.find c map), []
+    st, Why3.Term.t_var (Constants.Map.find c map), []
   | Const _ -> unsupported "const"
   | Lam t ->
     let st, tt, eg = aux ~depth:(depth+1) st t map in
@@ -297,7 +297,7 @@ let rec readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | Builtin (_, _) -> unsupported "builtin"
   | CData _ -> unsupported "cdata"
   | UnifVar (_, _) -> unsupported "unifvar"
-  in aux ~depth st tm Mint.empty
+  in aux ~depth st tm Constants.Map.empty
 
 and term : Term.term API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "term";
@@ -733,7 +733,7 @@ let why3_builtin_declarations =
     MLData term;
     MLDataC ty;
     MLData tysym;
-    MLDataC tyvsym;
+    MLData tyvsym;
     MLData prsymbol;
     MLDataC tdecl;
     MLData decl

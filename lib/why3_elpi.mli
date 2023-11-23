@@ -1,3 +1,7 @@
+val descriptor : Elpi.API.Setup.state_descriptor
+
+(** Embeddings of Why3 types *)
+
 (** Embeddings of terms, types and tasks *)
 val term : Why3.Term.term Elpi.API.Conversion.t
 val ty : (Why3.Ty.ty, unit,unit) Elpi.API.ContextualConversion.t (* Ty is downcasted to build a list ty constructors, this forces the unit, unit *)
@@ -9,7 +13,6 @@ val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
 val document : Elpi.API.BuiltIn.declaration list -> unit
 
 (** Other embeddings: constants (ty/l symbols) and variables for types and terms *)
-val tyvsym : (Why3.Ty.tvsymbol,unit,unit) Elpi.API.ContextualConversion.t
 val tysym : Why3.Ty.tysymbol Elpi.API.Conversion.t
 val lsym : Why3.Term.lsymbol Elpi.API.Conversion.t
 val vsym : Why3.Term.vsymbol Elpi.API.Conversion.t
