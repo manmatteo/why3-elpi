@@ -13,7 +13,7 @@ let why3_transform_declarations =  fun (e : Env.env) ->
             Easy "Get the environment in which the transformation is called" ),
             fun _ ~depth:_ -> !: (e)),
         DocAbove );
-  LPCode {|type transform string -> list tdecl -> list tdecl -> prop.|}]
+  LPCode {|type transform string -> list tdecl -> list (list tdecl) -> prop.|}]
 
 let debug_no_typecheck = Debug.register_flag ~desc:"Disable typechecking for Elpi transformations" "no_elpi_tc"
 
@@ -29,7 +29,7 @@ let query (arg: string) (e: Env.env) (t : Task.task) =
     ast |>
     Elpi.API.Compile.unit ~flags ~elpi |>
     (fun u -> Elpi.API.Compile.assemble ~elpi ~flags [u]) in
-  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(task,t,Q(task,"Output",N))))}) in
+  let main_query = API.Query.compile prog loc (API.Query.Query {predicate = "transform"; arguments = (D(API.BuiltInData.string, arg, D(task,t,Q(Elpi.API.BuiltInData.list task,"Output",N))))}) in
   if not (Debug.test_flag debug_no_typecheck) && not (Elpi.API.Compile.static_check ~checker:(Elpi.Builtin.default_checker ()) main_query)
     then Loc.errorm "elpi: type error in file"
   else
@@ -59,7 +59,7 @@ let build_quotation (naming_table: Trans.naming_table)  : Elpi.API.Quotation.quo
    in let st, t, _ = term.embed ~depth st tm
    in st, t
 
-let elpi_trans : Trans.trans_with_args = 
+let elpi_trans : Trans.trans_with_args_l = 
   fun argl env naming_table _name  ->
   let () = API.Quotation.set_default_quotation (build_quotation naming_table) in
   match argl with
@@ -68,5 +68,5 @@ let elpi_trans : Trans.trans_with_args =
 
 (* let () = Trans.register_transform "elpi_query" elpi_trans
 ~desc:"Run@ a@ simple@ elpi@ command" *)
-let () = Trans.register_transform_with_args "lp" elpi_trans
+let () = Trans.register_transform_with_args_l "lp" elpi_trans
 ~desc:"Run@ a@ simple@ elpi@ command"
