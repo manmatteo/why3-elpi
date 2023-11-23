@@ -12,6 +12,7 @@ let varmap : (int Term.Mvs.t) API.State.component =
 
 (* Constants for Why3 HOAS *)
 let epsc = Elpi.API.RawData.Constants.declare_global_symbol "eps"
+let letc = Elpi.API.RawData.Constants.declare_global_symbol "let"
 let andc = Elpi.API.RawData.Constants.declare_global_symbol "and"
 let orc = Elpi.API.RawData.Constants.declare_global_symbol "or"
 let impc = Elpi.API.RawData.Constants.declare_global_symbol "imp"
@@ -162,10 +163,14 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
       st, mkCons tt args, eg@egs
     ) args (st,mkNil,eg) in
     st, mkApp applc lsy [argslist], egs 
-  | Term.Tlet (_, _)
-  -> unsupported "let binder"
-  | Term.Tcase (_, _)
-  -> unsupported "case"
+  | Term.Tlet (t, tbound) -> 
+    let st, t, eg1 = embed_term ~depth st t in (* the term we are naming *)
+    let var, topen = Term.t_open_bound tbound in (* the bound variable and the term where it is bound *)
+    let st, ty_term, eg2 = ty.embed () () ~depth st var.vs_ty in (* embed vname and its type *)
+    let st, vname, eg3 = vsym.embed ~depth st var in
+    let st = API.State.update varmap st (Mvs.add var depth) in
+    let st, topen, eg4 = embed_term ~depth:(depth + 1) st topen in
+    st, mkApp letc vname [ty_term; t; mkLam topen], eg1 @ eg2 @ eg3 @ eg4
   | Term.Teps t ->
     let var, term = Term.t_open_bound t in
     let st = API.State.update varmap st (Mvs.add var depth) in
@@ -282,11 +287,17 @@ and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
     build_quantified_body ~depth st typ vname bo map Why3.Term.Tforall
   | App (c, vname, [typ; bo]) when c = existsc ->
     build_quantified_body ~depth st typ vname bo map Why3.Term.Texists
-  | App (c, vname, [_typ; bo]) when c = lambc -> (* type is in vsymb as cdata *)
+  | App (c, vname, [_typ; bo]) when c = epsc -> (* type is in vsymb as cdata *)
     let st, var, eg2 = vsym.readback ~depth st vname in
-    let map = Mint.add depth var map in
+    let map = Constants.Map.add depth var map in
     let st, bo, eg3 = aux ~depth st bo map in
     st, Term.t_eps_close var bo, eg2 @ eg3
+  | App (c, vname, [_typ; t; tbound]) when c = letc -> (* type is in vsymb as cdata *)
+    let st, var, eg2 = vsym.readback ~depth st vname in
+    let map = Constants.Map.add depth var map in
+    let st, t, eg3 = aux ~depth st t map in
+    let st, tbound, eg4 = aux ~depth:(depth+1) st tbound map in
+    st, Term.t_let_close var t tbound, eg2 @ eg3 @ eg4
   | App (c, n, []) when c = intc -> (* Native integers *)
     let st, n, eg = API.BuiltInData.int.readback ~depth st n
     in st, Why3.Term.t_nat_const n, eg
