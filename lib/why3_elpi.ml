@@ -33,6 +33,8 @@ let intc = Elpi.API.RawData.Constants.declare_global_symbol "tint"
 let falsec = Elpi.API.RawData.Constants.declare_global_symbol "bot"
 let truec = Elpi.API.RawData.Constants.declare_global_symbol "top"
 let itec = Elpi.API.RawData.Constants.declare_global_symbol "ite"
+let matchc = Elpi.API.RawData.Constants.declare_global_symbol "match"
+let branchc = Elpi.API.RawData.Constants.declare_global_symbol "branch"
 
 (* Printer for Ident-like Why3 builtins: ident, variables...
    These are mostly a layer over Ident, and can be seen as names *)
@@ -135,10 +137,87 @@ let vsym : Term.vsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [];
 }
 
-let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
+let pwildc = Elpi.API.RawData.Constants.declare_global_symbol "pwild"
+let pappc = Elpi.API.RawData.Constants.declare_global_symbol "papp"
+let pasc = Elpi.API.RawData.Constants.declare_global_symbol "pas"
+let pvarc = Elpi.API.RawData.Constants.declare_global_symbol "pvar"
+let porc = Elpi.API.RawData.Constants.declare_global_symbol "por"
+let pabsc = Elpi.API.RawData.Constants.declare_global_symbol "pabs"
+let rec embed_pattern = fun ~depth st pat ->
+  (* let unsupported msg = Loc.errorm "Pattern not supported: (%s)@." msg in *)
+  let open Elpi.API.RawData in
+  let open Term in
+  match pat.pat_node with
+  | Term.Pvar vr ->
+    API.State.update varmap st (Mvs.add vr depth), (* state *)
+    mkApp pvarc (mkBound depth) [], (* term *)
+    [] (* extra goals *)
+  | Term.Pwild ->
+    let st, typ, eg = ty.embed () () ~depth st pat.pat_ty in
+    st, mkApp pwildc typ [], eg
+  | Term.Papp (ls, pl) ->
+    let st, lsy, eg1 = lsym.Elpi.API.Conversion.embed st ~depth ls in
+    let st, typ, eg2 = ty.embed () () ~depth st pat.pat_ty in
+    let st, pl, egs =
+      List.fold_right (fun pat (st, pl, egs) ->
+      let depth = max depth (1 + List.fold_left max 0 (Mvs.values (API.State.get varmap st))) in
+      let st, tt, eg = embed_pattern ~depth st pat in
+      st, mkCons tt pl, eg@egs
+    ) pl (st,mkNil,[]) in
+    st, mkApp pappc lsy [pl;typ], eg1@eg2@egs
+  | Term.Pas (pat, vs) ->
+    let st = API.State.update varmap st (Mvs.add vs depth) in
+    let st, vs, eg2 = vsym.Elpi.API.Conversion.embed ~depth st vs in
+    let st, pat, eg1 = embed_pattern ~depth:(depth+1) st pat in
+    st, mkApp pasc pat [vs], eg1@eg2
+  | Term.Por (pat1, pat2) ->
+    let st, pat1, eg1 = embed_pattern ~depth st pat1 in
+    let st, pat2, eg2 = embed_pattern ~depth st pat2 in
+    st, mkApp porc pat1 [pat2], eg1@eg2
+
+and readback_pattern = fun ~depth st pat ->
   let unsupported msg =
-  Loc.errorm "Term not supported:(%s, %a)@." msg Pretty.print_term term
+  Loc.errorm "Readback not supported for pattern: (%s, %a)@." msg (Elpi.API.RawPp.term depth) pat
   in
+  let open Elpi.API.RawData in
+  let open Term in
+  match look ~depth pat with
+  | App (c, typ, [])   when c = pwildc ->
+    let st, typ, eg = ty.readback ~depth () () st typ in
+    st, pat_wild typ, eg
+  | App (c, ls, [pl;typ]) when c = pappc  ->
+    let st, ls, eg1 = lsym.readback ~depth st ls in
+    let st, pl, eg2 = (API.BuiltInData.list pattern).readback ~depth st pl in
+    let st, typ, eg3 = ty.readback ~depth () () st typ in
+    st, pat_app ls pl typ, eg1@eg2@eg3
+  | App (c, pat, [vs]) when c = pasc ->
+    let st, pat, eg1 = readback_pattern ~depth st pat in
+    let st, vs, eg2 = vsym.readback ~depth st vs in
+    st, pat_as pat vs, eg1@eg2
+  | App (c, vs, []) when c = pvarc ->
+    let vname = (match (look ~depth vs) with | Const v -> v | _ -> unsupported "") in
+    let vs =
+      try API.RawData.Constants.Map.find vname (API.State.get mapvar st)
+    with Not_found -> unsupported "Can;t find corresponding vsymbol"
+    in
+    st, pat_var vs, []
+  | App (c, pat1, [pat2]) when c = porc ->
+    let st, pat1, eg1 = readback_pattern ~depth st pat1 in
+    let st, pat2, eg2 = readback_pattern ~depth st pat2 in
+    st, pat_or pat1 pat2, eg1@eg2
+  | _ -> unsupported ""
+
+and pattern : Term.pattern API.Conversion.t = {
+  API.Conversion.ty = API.Conversion.TyName "pattern";
+  pp = (fun _ _ -> ());
+  pp_doc = (fun fmt () -> Format.fprintf fmt "kind pattern type.");
+  readback = readback_pattern;
+  embed = embed_pattern;
+}
+
+let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
+  let unsupported msg =
+  Loc.errorm "Term embedding not supported:@.(%s,@. %a)@." msg Pretty.print_term term in
   let open Elpi.API.RawData in
   let open Term in
   let build_binders binder vlist embedded_body =
@@ -177,6 +256,26 @@ let embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
     let st = API.State.update varmap st (Mvs.add var depth) in
     let st, topen, eg4 = embed_term ~depth:(depth + 1) st topen in
     st, mkApp letc vname [ty_term; t; mkLam topen], eg1 @ eg2 @ eg3 @ eg4
+  | Term.Tcase (t, branches) ->
+    (* let open API.ContextualConversion in *)
+    let st, term, eg = embed_term ~depth st t in
+    let st, branches, eg1 = (API.BuiltInData.list term_branch).embed ~depth st branches in
+    st, mkApp matchc term [branches], eg@eg1
+    (* List.fold_left (fun (st,terms,eg) b ->
+      let pat, tm = Term.t_open_branch b in
+      let st, pat, eg1, branch_map = embed_pattern ~depth st pat in
+      (Mvs.iter (fun v value -> Format.printf "%a -> %d@." Pretty.print_vs v value) map);
+      (Format.printf "pattern: %a@." (Elpi.API.RawPp.term depth) pat);
+      let map = Mvs.set_union map branch_map in
+      let depth = depth + (Mvs.cardinal branch_map) in
+      let st, term, eg2 = aux ~depth st tm map in
+      let st, term , egs = build_binders pabsc (Mvs.keys branch_map) (st, mkApp branchc pat [term], eg@eg1@eg2)
+      in
+      st, (mkCons term terms), egs
+      (* st, mkCons pat pats, mkCons term terms, eg@eg1@eg2 *)
+    ) (st,mkNil,[]) branches
+    in *)
+    
   | Term.Teps t ->
     let var, term = Term.t_open_bound t in
     let st = API.State.update varmap st (Mvs.add var depth) in
@@ -295,6 +394,10 @@ and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | App (c, n, []) when c = intc -> (* Native integers *)
     let st, n, eg = API.BuiltInData.int.readback ~depth st n
     in st, Why3.Term.t_nat_const n, eg
+  | App (c, tm, [branches]) when c = matchc ->
+    let st, tm, eg1 = readback_term ~depth st tm in
+    let st, branches, eg2 = (API.BuiltInData.list term_branch).readback ~depth st branches in
+    st,Term.t_case tm branches,eg1@eg2
   | App (c, _, _) ->
     unsupported (Format.asprintf "app %a" (Elpi.API.RawPp.term depth) (mkConst c))
   | Cons (_, _) -> unsupported "cons"
@@ -324,6 +427,45 @@ type top term.
 type bot term.|});
   readback = readback_term;
   embed = embed_term;
+}
+
+and embed_term_branch = fun ~depth st tb ->
+  let (pat, tm) = Term.t_open_branch tb in
+  let open Elpi.API.RawData in
+  let oldmap = API.State.get varmap st in
+  let st, pat, eg1 = embed_pattern ~depth st pat in
+  let newmap = API.State.get varmap st in
+  let map_diff = Term.Mvs.set_diff newmap oldmap in
+  let st, tm, eg2 = term.embed ~depth st tm in
+  Term.Mvs.fold (fun vs _vn (st, tm, egs) ->
+    let st, vs, eg = vsym.embed ~depth st vs in
+    st, mkApp pabsc vs [mkLam tm], egs@eg)
+    map_diff (st,mkApp branchc pat [tm],eg1@eg2)
+
+and readback_term_branch = fun ~depth st tb ->
+  let unsupported msg =
+  Loc.errorm "Readback not supported for term branch: (%s, %a)@." msg (Elpi.API.RawPp.term depth) tb
+  in
+  let open Elpi.API.RawData in
+  match look ~depth tb with
+  | App (c, vname,[tbranch]) when c = pabsc ->
+    let st, var, eg = vsym.readback ~depth st vname in
+    let st = API.State.update mapvar st (Constants.Map.add depth var) in
+    (match look ~depth tbranch with
+    | Lam t -> let st,tm, eg1 = term_branch.readback ~depth:(depth+1) st t in st, tm, eg@eg1
+    | _ -> unsupported "")
+  | App (c, pat, [tm]) when c = branchc ->
+    let st, pat, eg1 = readback_pattern ~depth st pat in
+    let st, tm, eg2 = term.readback ~depth st tm in
+    st, Term.t_close_branch pat tm, eg1@eg2
+  | _ -> unsupported ""
+
+and term_branch : Term.term_branch API.Conversion.t = {
+  API.Conversion.ty = API.Conversion.TyName "term_branch";
+  pp = (fun _ _ -> ());
+  pp_doc = (fun fmt () -> Format.fprintf fmt "kind term_branch type.");
+  readback = readback_term_branch;
+  embed = embed_term_branch;
 }
 
 let prsymbol : Decl.prsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
@@ -732,6 +874,7 @@ let why3_builtin_declarations =
     MLData meta_arg;
     MLData theory;
     MLData ident;
+    MLData pattern;
     MLData lsym;
     MLData vsym;
     MLData term;
@@ -742,7 +885,6 @@ let why3_builtin_declarations =
     MLDataC tdecl;
     MLData decl
     ]
- 
 
 let document builtins =
   let w3lp_builtins = API.BuiltIn.declare ~file_name:"w3lp.elpi" builtins
