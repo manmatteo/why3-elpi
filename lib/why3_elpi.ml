@@ -9,6 +9,12 @@ let varmap : (int Term.Mvs.t) API.State.component =
     ~init:(fun _ -> Term.Mvs.empty)
     ~pp:(fun _ _ -> ())
     ~start:(fun x -> x) ()
+let mapvar : (Term.vsymbol API.RawData.Constants.Map.t) API.State.component =
+  API.State.declare_component ~descriptor
+    ~name:"mapvar"
+    ~init:(fun _ -> API.RawData.Constants.Map.empty)
+    ~pp:(fun _ _ -> ())
+    ~start:(fun x -> x) ()
 
 (* Constants for Why3 HOAS *)
 let epsc = Elpi.API.RawData.Constants.declare_global_symbol "eps"
@@ -218,23 +224,12 @@ and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   Loc.errorm "Readback not supported for term:@ (%s@, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
   let open API.RawData in
-  (* The correspondence between De Brujin levels and Why3 variables during
-     readback is stored in a Wstdlib.Mint map *)
-  let rec aux ~depth st tm (map : Term.vsymbol Constants.Map.t) =
-  (* Instrument a full conversion dependent on a variable map, so that it can be used
-     to call a `list term` conversion in a recursive call *)
-  let aux_conversion : Term.vsymbol Constants.Map.t -> Term.term API.Conversion.t = fun m -> {
-    API.Conversion.ty = API.Conversion.TyName "term";
-    pp = Pretty.print_term; pp_doc = (fun _ () -> ()); embed = term.embed;
-    readback = (fun ~depth st tm -> aux ~depth st tm m);
-  }
-  in
-  let build_quantified_body ~depth st _typ vname bo map quant =
+  let build_quantified_body ~depth st _typ vname bo quant =
     (* note that reading back the type is not necessary, since it is already in the embedded vsymb,
        as long as vsymb is CData *)
     let st, var, eg2 = vsym.readback ~depth st vname in
-    let map = Constants.Map.add depth var map in
-    let st, bo, eg3 = aux ~depth st bo map in
+    let st = API.State.update mapvar st (Constants.Map.add depth var) in
+    let st, bo, eg3 = readback_term ~depth st bo in
     (match bo.t_node with
     | Term.Tquant (quant, tq) -> let (vlist,_,bo) = Term.t_open_quant tq in
       st, Term.t_quant_close quant (var::vlist) [] bo, eg2 @ eg3
@@ -247,56 +242,55 @@ and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | Const c when c == falsec -> st, Why3.Term.t_false, []
   | Const c when c == lsymbc -> unsupported "const"
   | Const c when c>=0 ->
-    st, Why3.Term.t_var (Constants.Map.find c map), []
+    let var = Constants.Map.find c (API.State.get mapvar st) in
+    st, Why3.Term.t_var var, []
   | Const _ -> unsupported "const"
-  | Lam t ->
-    let st, tt, eg = aux ~depth:(depth+1) st t map in
-    st, tt, eg
+  | Lam t -> readback_term ~depth:(depth+1) st t
   | App (c, t1, [t2]) when c = andc -> 
-    let st, tt1, eg1 = aux ~depth st t1 map in
-    let st, tt2, eg2 = aux ~depth st t2 map in
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
     st,  Why3.Term.t_and tt1 tt2, eg1 @ eg2
   | App (c, t1, [t2]) when c = orc ->
-    let st, tt1, eg1 = aux ~depth st t1 map in
-    let st, tt2, eg2 = aux ~depth st t2 map in
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
     st,  Why3.Term.t_or tt1 tt2, eg1 @ eg2
   | App (c, t1, [t2]) when c = impc ->
-    let st, tt1, eg1 = aux ~depth st t1 map in
-    let st, tt2, eg2 = aux ~depth st t2 map in
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
     st,  Why3.Term.t_implies tt1 tt2, eg1 @ eg2
   | App (c, t1, [t2]) when c = iffc ->
-    let st, tt1, eg1 = aux ~depth st t1 map in
-    let st, tt2, eg2 = aux ~depth st t2 map in
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
     st,  Why3.Term.t_iff tt1 tt2, eg1 @ eg2
   | App (c, t1, [t2;t3]) when c = itec ->
-    let st, tt1, eg1 = aux ~depth st t1 map in
-    let st, tt2, eg2 = aux ~depth st t2 map in
-    let st, tt3, eg3 = aux ~depth st t3 map in
+    let st, tt1, eg1 = readback_term ~depth st t1 in
+    let st, tt2, eg2 = readback_term ~depth st t2 in
+    let st, tt3, eg3 = readback_term ~depth st t3 in
     st,  Why3.Term.t_if tt1 tt2 tt3, eg1 @ eg2 @ eg3
   | App (c, t1, []) when c = notc ->
-    let st, t1, eg = aux ~depth st t1 map in
+    let st, t1, eg = readback_term ~depth st t1 in
     st, Why3.Term.t_not t1, eg
   | App (c, t1, []) when c = lsymbc -> (* Predicate with no arguments *)
     let st, ls, eg = lsym.readback ~depth st t1 in
     st, Why3.Term.t_app_infer ls [], eg
   | App (c, t1, [tl]) when c = applc ->(* Predicate with arguments *)
     let st, t1, eg1 = lsym.readback ~depth st t1 in
-    let st, tl, eg2 = (API.BuiltInData.list (aux_conversion map)).readback ~depth st tl in
+    let st, tl, eg2 = (API.BuiltInData.list term).readback ~depth st tl in
     st, Why3.Term.t_app_infer t1 tl, eg1 @ eg2
   | App (c, vname, [typ; bo]) when c = allc ->
-    build_quantified_body ~depth st typ vname bo map Why3.Term.Tforall
+    build_quantified_body ~depth st typ vname bo Why3.Term.Tforall
   | App (c, vname, [typ; bo]) when c = existsc ->
-    build_quantified_body ~depth st typ vname bo map Why3.Term.Texists
+    build_quantified_body ~depth st typ vname bo Why3.Term.Texists
   | App (c, vname, [_typ; bo]) when c = epsc -> (* type is in vsymb as cdata *)
     let st, var, eg2 = vsym.readback ~depth st vname in
-    let map = Constants.Map.add depth var map in
-    let st, bo, eg3 = aux ~depth st bo map in
+    let st = API.State.update mapvar st (Constants.Map.add depth var) in
+    let st, bo, eg3 = readback_term ~depth st bo in
     st, Term.t_eps_close var bo, eg2 @ eg3
   | App (c, vname, [_typ; t; tbound]) when c = letc -> (* type is in vsymb as cdata *)
     let st, var, eg2 = vsym.readback ~depth st vname in
-    let map = Constants.Map.add depth var map in
-    let st, t, eg3 = aux ~depth st t map in
-    let st, tbound, eg4 = aux ~depth:(depth+1) st tbound map in
+    let st = API.State.update mapvar st (Constants.Map.add depth var) in
+    let st, t, eg3 = readback_term ~depth st t in
+    let st, tbound, eg4 = readback_term ~depth st tbound in
     st, Term.t_let_close var t tbound, eg2 @ eg3 @ eg4
   | App (c, n, []) when c = intc -> (* Native integers *)
     let st, n, eg = API.BuiltInData.int.readback ~depth st n
@@ -308,7 +302,6 @@ and readback_term : Term.term API.Conversion.readback = fun ~depth st tm ->
   | Builtin (_, _) -> unsupported "builtin"
   | CData _ -> unsupported "cdata"
   | UnifVar (_, _) -> unsupported "unifvar"
-  in aux ~depth st tm Constants.Map.empty
 
 and term : Term.term API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "term";
