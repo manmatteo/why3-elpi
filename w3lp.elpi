@@ -9,6 +9,9 @@ external pred why3.term->string i:term, o:string.
 % printer
 external pred why3.decl->string i:decl, o:string.
 
+% [why3.create-ident S I] Create and register a fresh ident from a string
+external pred why3.create-ident i:string, o:ident.
+
 % [why3.create-prsymbol S P] Create a fresh prsymbol from a string
 external pred why3.create-prsymbol i:string, o:prsymbol.
 
@@ -21,7 +24,10 @@ external pred why3.create-prop i:string, i:list ty, o:lsymbol.
 external pred why3.create-lsymb i:string, i:list ty, i:ty, o:lsymbol.
 
 % [why3.var-type V T] Get the type of a variable
-external pred why3.var-type i:vsymbol, o:ty.
+external pred why3.var-type i:var, o:ty.
+
+% [why3.lsymb-name L S] Get the Ident of a predicate symbol
+external pred why3.lsymb-name i:lsymbol, o:ident.
 
 % [why3.lsymb-type L T] Get the type of a predicate symbol
 external pred why3.lsymb-type i:lsymbol, o:ty.
@@ -30,22 +36,62 @@ external pred why3.lsymb-type i:lsymbol, o:ty.
 % predicate symbol
 external pred why3.lsymb-args-type i:lsymbol, o:list ty.
 
-% [why3.search-lsymb E T N S L] Look for a symbol in the environment. The
-% theory T and namespace N where the symbol should be looked for need to be
-% provided.
+% [why3.search-lsymb E T N S L] 
+% Look for a symbol in the environment. The theory T andnamespace N where
+% the symbol should be looked for need to beprovided.
 external pred why3.search-lsymb i:env, i:string, i:list string, i:string, 
                                 o:lsymbol.
 
-% Embedding of type variables
+% [why3.var-name V S] Get the Ident of a variable symbol
+external pred why3.var-name i:var, o:ident.
+
+% [why3.pr-name V S] Get the Ident of a proposition declaration symbol
+external pred why3.pr-name i:prsymbol, o:ident.
+
+% [why3.get-attrs I L] 
+% Obtain a list of strings corresponding to the attributes of anidentifier.
+% Useful for filtering based on an attribute name,although the underlying
+% attributes are currently not exposed throughthe API.
+external pred why3.get-attrs i:ident, o:list string.
+
+% The current environment can be retrieved, for example during a
+% transformation with why3.get-env
 typeabbrev env (ctype "env").
 
 
-% Embedding of predicate symbols
+% Symbol for meta (currently cannot be inspected)
+typeabbrev meta (ctype "meta").
+
+
+% Symbol for meta args (currently cannot be inspected)
+typeabbrev meta-arg (ctype "meta-arg").
+
+
+% Symbol for theory (currently cannot be inspected)
+typeabbrev theory (ctype "theory").
+
+
+% Why3 identifiers. Can be inspected or built via builtin predicates, for
+% example for accessing their attributes.
+typeabbrev ident (ctype "ident").
+
+
+kind pattern type.
+type pwild ty -> pattern.
+type papp lsymbol -> list pattern -> ty -> pattern. 
+type pas pattern -> var -> pattern.
+type pvar term -> pattern.
+type por pattern -> pattern -> pattern.
+type pabs var -> (term -> term_branch) -> term_branch.
+
+kind term_branch type.
+% Embedding of predicate symbols. Name, argument and value type can be
+% accessed via native predicates.
 typeabbrev lsymbol (ctype "lsymbol").
 
 
 % Embedding of variable symbols
-typeabbrev vsymbol (ctype "vsymbol").
+typeabbrev var (ctype "var").
 
 
 kind term type.
@@ -57,23 +103,27 @@ type and term -> term -> term.
 type or  term -> term -> term.
 type imp term -> term -> term.
 type iff term -> term -> term.
-type all ty -> (term -> term) -> term.
-type ex  ty -> (term -> term) -> term.
+type all var  -> ty   -> (term -> term) -> term.
+type ex  var  -> ty   -> (term -> term) -> term.
 type ite term -> term -> term -> term.
 type not term -> term.
 type top term.
 type bot term.
+type eps var -> ty -> (term -> term) -> term.
+type match term -> list term_branch -> term.
+type branch pattern -> term -> term_branch.
 % Embedding of types
 kind ty type.
-type tvar tyvsymbol -> ty. % Type variable
+type tvar tv -> ty. % Type variable
 type tapp tysymbol -> list ty -> ty.
 
-% Embedding of type symbols
+% Embedding of type symbols. Internal information (Ident, arguments) is
+% not exposed.
 typeabbrev tysymbol (ctype "tysymbol").
 
 
-% Embedding of type variables
-typeabbrev tyvsymbol (ctype "tyvsymbol").
+% Variables in polymorphic types.
+typeabbrev tv (ctype "tv").
 
 
 % Names for declarations
@@ -87,20 +137,26 @@ type use theory -> tdecl. % Use of theory
 type meta meta -> list meta-arg -> tdecl. % Map of metas
 type clone meta-arg -> tdecl. % Clone of theory
 
+type logic  lsymbol  -> term -> logic_decl.
+typeabbrev data_decl (ctype "data_decl").
+
+
 kind decl type.
 type goal   prsymbol -> term -> decl.
 type lemma  prsymbol -> term -> decl.
 type axiom  prsymbol -> term -> decl.
-type tydecl tysymbol -> decl.
-type data   list X   -> decl.
-type declls list X   -> decl.
-type param  lsymbol  -> decl.
+type typ    tysymbol -> decl. % Abstract type
+type data   list data_decl   -> decl. % Data (defined) type
+type declls list logic_decl  -> decl. % Defined logic symbol
+type const  lsymbol  -> decl.
+
+
 % Predicates for building Why3 transformations
 
 % [why3.get-env E] Get the environment in which the transformation is called
 external pred why3.get-env o:env.
 
-type transform string -> list tdecl -> list tdecl -> prop.
+type transform string -> list tdecl -> list (list tdecl) -> prop.
 
 
 

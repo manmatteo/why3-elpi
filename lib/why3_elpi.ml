@@ -210,7 +210,15 @@ and readback_pattern = fun ~depth st pat ->
 and pattern : Term.pattern API.Conversion.t = {
   API.Conversion.ty = API.Conversion.TyName "pattern";
   pp = (fun _ _ -> ());
-  pp_doc = (fun fmt () -> Format.fprintf fmt "kind pattern type.");
+  pp_doc = (fun fmt () -> Format.fprintf fmt
+{|kind pattern type.
+type pwild ty -> pattern.
+type papp lsymbol -> list pattern -> ty -> pattern. 
+type pas pattern -> var -> pattern.
+type pvar term -> pattern.
+type por pattern -> pattern -> pattern.
+type pabs var -> (term -> term_branch) -> term_branch.
+|});
   readback = readback_pattern;
   embed = embed_pattern;
 }
@@ -424,7 +432,10 @@ type ex  var  -> ty   -> (term -> term) -> term.
 type ite term -> term -> term -> term.
 type not term -> term.
 type top term.
-type bot term.|});
+type bot term.
+type eps var -> ty -> (term -> term) -> term.
+type match term -> list term_branch -> term.
+type branch pattern -> term -> term_branch.|});
   readback = readback_term;
   embed = embed_term;
 }
@@ -570,10 +581,10 @@ let logic_decl : Decl.logic_decl API.Conversion.t = {
 let plemmac = Elpi.API.RawData.Constants.declare_global_symbol "lemma"
 let paxiomc = Elpi.API.RawData.Constants.declare_global_symbol "axiom"
 let pgoalc = Elpi.API.RawData.Constants.declare_global_symbol "goal"
-let paramc = Elpi.API.RawData.Constants.declare_global_symbol "param"
-let tydeclc = Elpi.API.RawData.Constants.declare_global_symbol "tydecl"
+let paramc = Elpi.API.RawData.Constants.declare_global_symbol "const"
+let tydeclc = Elpi.API.RawData.Constants.declare_global_symbol "typ" (* Abstract type*)
+let datac = Elpi.API.RawData.Constants.declare_global_symbol "data"  (* Data (defined) type*)
 let decllc = Elpi.API.RawData.Constants.declare_global_symbol "declls"
-let datac = Elpi.API.RawData.Constants.declare_global_symbol "data"
 
 let embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   let unsupported msg =
@@ -649,10 +660,10 @@ let decl : Decl.decl API.Conversion.t = {
 type goal   prsymbol -> term -> decl.
 type lemma  prsymbol -> term -> decl.
 type axiom  prsymbol -> term -> decl.
-type tydecl tysymbol -> decl.
-type data   list X   -> decl.
-type declls list X   -> decl.
-type param  lsymbol  -> decl.|});
+type typ    tysymbol -> decl. %% Abstract type
+type data   list data_decl   -> decl. %% Data (defined) type
+type declls list logic_decl  -> decl. %% Defined logic symbol
+type const  lsymbol  -> decl.|});
   readback = readback_decl;
   embed = embed_decl;
 }
@@ -875,6 +886,7 @@ let why3_builtin_declarations =
     MLData theory;
     MLData ident;
     MLData pattern;
+    MLData term_branch;
     MLData lsym;
     MLData vsym;
     MLData term;
@@ -883,7 +895,10 @@ let why3_builtin_declarations =
     MLData tyvsym;
     MLData prsymbol;
     MLDataC tdecl;
-    MLData decl
+    MLData logic_decl;
+    MLData data_decl;
+    MLData decl;
+    LPCode ""
     ]
 
 let document builtins =
