@@ -855,6 +855,8 @@ let why3_builtin_declarations =
               let theory = Env.read_theory e n t in
               Theory.ns_find_ls theory.Theory.th_export [s])),
         DocAbove );
+    MLCode (Pred ("why3.data-ty", In (data_decl, "D", Out (tysym, "T", Easy "Get the defined type symbol of a datatype declaration.")),
+    fun (ty,_k) _ ~depth:_ -> !: (ty)), DocAbove);
     MLCode
       (Pred ("why3.var-name",
             In (vsym, "V",
@@ -868,6 +870,13 @@ let why3_builtin_declarations =
             Out (ident, "S",
             Easy "Get the Ident of a proposition declaration symbol")),
             fun s _ ~depth:_ -> !: (s.pr_name)),
+            DocAbove);
+    MLCode
+      (Pred ("why3.ty-name",
+            In (tysym, "T",
+            Out (ident, "S",
+            Easy "Get the Ident of a type symbol")),
+            fun t _ ~depth:_ -> !: (t.ts_name)),
             DocAbove);
     MLCode
       ( Pred ( "why3.get-attrs",
