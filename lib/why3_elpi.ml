@@ -64,6 +64,8 @@ let attribute : Ident.attribute Elpi.API.Conversion.t = Elpi.API.OpaqueData.decl
   hconsed = false;
   constants = [];
 } *)
+let tabsc = Elpi.API.RawData.Constants.declare_global_symbol "tabs"
+let tappc = Elpi.API.RawData.Constants.declare_global_symbol "tapp"
 
 let env : Env.env Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   name = "env";
@@ -93,25 +95,80 @@ let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   constants = [] (* Are these helpful? [("arr", Ty.ts_func); ("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
-let ty : (Ty.ty, 'a, 'b) API.ContextualConversion.t =
-  let open API.BuiltInData in
-  let open API.ContextualConversion in
-  API.AlgebraicData.declare {
-  ty = TyName "ty";
-  doc = "Embedding of types";
+(* Vars are collected at the bottom and then abstracted in one pass at the end,
+   so we need to doubly thread the var map. The "Tvar" case looks for an already defined occurrence,
+   and updates the map if none is found *)
+let rec embed_ty =
+  let open Ty in
+  fun ~depth st ty map ->
+  let open Elpi.API.RawData in
+  match ty.ty_node with
+  | Ty.Tyapp (h, l) ->
+    (* Format.printf "embedding vlist %a@." (Pp.print_list Pp.comma Pretty.print_ty) l; *)
+    let st, ts, egs = tysym.Elpi.API.Conversion.embed ~depth st h in
+    let m,_depth,st,tk, egs = List.fold_left (fun (mapcur,depth,st,k,egs) arg ->
+      (* Format.printf "in fold@.";
+      Format.printf "its this@."; *)
+      let mapnew, st, tt, eg = embed_ty ~depth st arg mapcur in 
+      let depth = depth + (Mtv.cardinal mapnew) - (Mtv.cardinal mapcur) in
+      mapnew,depth,st, k@[tt], eg@egs
+    ) (map,depth,st,[],egs) l in
+    m, st, mkApp tappc ts [API.Utils.list_to_lp_list tk], egs
+  | Ty.Tyvar v ->
+    Format.printf "found var %d at %d@." (Weakhtbl.tag_hash v.tv_name.id_tag) depth;
+    match Ty.Mtv.find_opt v map with
+    | Some n -> map, st, mkBound n, []
+    | None -> (Ty.Mtv.add v depth map), st, mkBound depth, []
+
+and readback_ty = fun ~depth st tm map ->
+  (* Format.printf "readback_ty %a@." (Elpi.API.RawPp.term depth) tm; *)
+  let open Elpi.API.RawData in
+  let unsupported msg =
+    Format.printf "map is@.";
+    Constants.Map.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_tv v) map;
+  Loc.errorm "Readback not supported for type:@ (%s, %a)@." msg (Elpi.API.RawPp.term depth) tm
+  in
+  match look ~depth tm with
+  | Lam t -> readback_ty ~depth:(depth+1) st t map
+  | Const c ->
+    begin match Constants.Map.find_opt c map
+    with
+    | Some v -> st, Ty.ty_var v, []
+    | None -> unsupported "Unbound type variable"
+    end
+  | App (c, tv, [tb]) when c = tabsc -> 
+    let st, tv, eg = tyvsym.readback ~depth st tv in
+    let newmap = Constants.Map.add depth tv map in
+    let st, tt, eg2 = readback_ty ~depth st tb newmap in
+    st, tt, eg@eg2
+  | App (c, ts, [tl]) when c = tappc  -> 
+    let open API.Utils in
+    let st, ts, eg1 = tysym.readback ~depth st ts in
+    let st,args,eg2 = map_acc (fun st tl -> readback_ty ~depth st tl map) st (lp_list_to_list ~depth tl) in
+    st, Ty.ty_app ts args, eg1@eg2
+  | _ -> unsupported "unknown"
+
+(* Embedding of types *)
+and ty : Ty.ty API.Conversion.t =
+   {
+  API.Conversion.ty = API.Conversion.TyName "ty";
   pp = Pretty.print_ty;
-  constructors = [
-   K("tvar","Type variable",
-     A (tyvsym,N),
-     B Ty.ty_var,
-     M (fun ~ok ~ko ty ->
-       (match ty.ty_node with | Ty.Tyvar v -> ok v | _ -> ko ())));
-   K("tapp","",
-     A (tysym,C((fun x -> (!>) (list (!< x))) , N)),
-     B Ty.ty_app,
-     M (fun ~ok ~ko ty ->
-       (match ty.ty_node with | Ty.Tyapp (t, u) -> ok t u | _ -> ko ())));
-  ]
+  pp_doc = (fun fmt () -> Format.fprintf fmt
+{|%% Embedding of types
+kind ty type.
+type tabs tv -> (ty -> ty) -> ty.
+type tapp tysymbol -> list ty -> ty.|});
+  readback = (fun ~depth st tm -> readback_ty ~depth st tm API.RawData.Constants.Map.empty);
+  embed = 
+  (fun ~depth st ty ->
+  let open API.RawData in
+  let map, st, ty, eg = embed_ty ~depth st ty Ty.Mtv.empty in
+  let sorted_bindings =  Ty.Mtv.bindings map |> List.sort (fun (_,a) (_,b) -> compare a b) in
+  List.fold_right (fun (tv,_vn) (st, ty, egs) ->
+    let st, tv, eg = tyvsym.embed ~depth st tv in
+    st, mkApp tabsc tv [mkLam ty], egs@eg)
+    sorted_bindings (st,ty,eg)
+  );
 }
 
 (** Embedding of lsymbols. Note: we are using OpaqueData, so argument and value
@@ -153,11 +210,11 @@ let rec embed_pattern = fun ~depth st pat ->
     mkApp pvarc (mkBound depth) [], (* term *)
     [] (* extra goals *)
   | Term.Pwild ->
-    let st, typ, eg = ty.embed () () ~depth st pat.pat_ty in
+    let st, typ, eg = ty.embed ~depth st pat.pat_ty in
     st, mkApp pwildc typ [], eg
   | Term.Papp (ls, pl) ->
     let st, lsy, eg1 = lsym.Elpi.API.Conversion.embed st ~depth ls in
-    let st, typ, eg2 = ty.embed () () ~depth st pat.pat_ty in
+    let st, typ, eg2 = ty.embed ~depth st pat.pat_ty in
     let st, pl, egs, _nbindings =
       List.fold_right (fun pat (st, pl, egs,n) ->
       (* let curmap = API.State.get varmap st in *)
@@ -187,12 +244,12 @@ and readback_pattern = fun ~depth st pat ->
   let open Term in
   match look ~depth pat with
   | App (c, typ, [])   when c = pwildc ->
-    let st, typ, eg = ty.readback ~depth () () st typ in
+    let st, typ, eg = ty.readback ~depth st typ in
     st, pat_wild typ, eg
   | App (c, ls, [pl;typ]) when c = pappc  ->
     let st, ls, eg1 = lsym.readback ~depth st ls in
     let st, pl, eg2 = (API.BuiltInData.list pattern).readback ~depth st pl in
-    let st, typ, eg3 = ty.readback ~depth () () st typ in
+    let st, typ, eg3 = ty.readback ~depth st typ in
     st, pat_app ls pl typ, eg1@eg2@eg3
   | App (c, pat, [vs]) when c = pasc ->
     let st, pat, eg1 = readback_pattern ~depth st pat in
@@ -234,7 +291,7 @@ let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   let open Term in
   let build_binders depth binder vlist embedded_body =
     List.fold_right (fun var (st, tm, eg) ->
-      let st, ty_term, eg1 = ty.embed () () ~depth st var.vs_ty in
+      let st, ty_term, eg1 = ty.embed ~depth st var.vs_ty in
       let st, vname, eg2 = vsym.embed ~depth st var in
       st, mkApp binder vname [ty_term; mkLam tm], eg @ eg1 @ eg2)
       vlist embedded_body
@@ -263,7 +320,7 @@ let rec embed_term : Term.term API.Conversion.embedding = fun ~depth st term ->
   | Term.Tlet (t, tbound) -> 
     let st, t, eg1 = embed_term ~depth st t in (* the term we are naming *)
     let var, topen = Term.t_open_bound tbound in (* the bound variable and the term where it is bound *)
-    let st, ty_term, eg2 = ty.embed () () ~depth st var.vs_ty in (* embed vname and its type *)
+    let st, ty_term, eg2 = ty.embed ~depth st var.vs_ty in (* embed vname and its type *)
     let st, vname, eg3 = vsym.embed ~depth st var in
     let st = API.State.update varmap st (Mvs.add var depth) in
     let st, topen, eg4 = embed_term ~depth:(depth + 1) st topen in
@@ -771,7 +828,6 @@ let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInData in
   let open Elpi.API.BuiltInPredicate in
-  let open Elpi.API.ContextualConversion in
   let open Elpi.API.BuiltInPredicate.Notation in
   [
     MLCode
@@ -804,7 +860,7 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.create-prop",
             In  (string,   "N",
-            In  (list @@ (!<) ty,  "TS",
+            In  (list ty,  "TS",
             Out (lsym,       "N",
             Easy "Axiomatize a propositional symbol with name N and argument types TS" ))),
             fun name ts _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts None)),
@@ -812,8 +868,8 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.create-lsymb",
             In  (string,   "N",
-            In  (list @@ (!<) ty,  "TS",
-            CIn (ty,  "T",
+            In  (list ty,  "TS",
+            In  (ty,  "T",
             Out (lsym,       "N",
             Easy "Axiomatize a function symbol with name N, type T and argument types TS" )))),
             fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts (Some t))),
@@ -821,7 +877,7 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.var-type",
             In  (vsym, "V",
-            COut (ty, "T",
+            Out (ty, "T",
             Easy "Get the type of a variable" )),
             fun var _ ~depth:_ -> !: (var.vs_ty)),
         DocAbove );
@@ -835,14 +891,14 @@ let why3_builtin_declarations =
     MLCode
       ( Pred ( "why3.lsymb-type",
             In  (lsym, "L",
-            COut (ty, "T",
+            Out (ty, "T",
             Easy "Get the type of a predicate symbol" )),
             fun s _ ~depth:_ -> !: (match s.ls_value with None -> Loc.errorm "No type for predicate symbol" | Some t -> t)),
         DocAbove );
     MLCode
       ( Pred ( "why3.lsymb-args-type",
             In  (lsym, "L",
-            Out (list @@ (!<) ty, "T",
+            Out (list ty, "T",
             Easy "Get the list of the argument types of a predicate symbol" )),
             fun s _ ~depth:_ -> !: (s.ls_args)),
         DocAbove );
@@ -904,7 +960,7 @@ let why3_builtin_declarations =
     MLData lsym;
     MLData vsym;
     MLData term;
-    MLDataC ty;
+    MLData ty;
     MLData tysym;
     MLData tyvsym;
     MLData prsymbol;

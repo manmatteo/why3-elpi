@@ -4,7 +4,7 @@ val descriptor : Elpi.API.Setup.state_descriptor
 
 (** Embeddings of terms, types and tasks *)
 val term : Why3.Term.term Elpi.API.Conversion.t
-val ty : (Why3.Ty.ty, unit,unit) Elpi.API.ContextualConversion.t (* Ty is downcasted to build a list ty constructors, this forces the unit, unit *)
+val ty : Why3.Ty.ty Elpi.API.Conversion.t
 val task : Why3.Task.task Elpi.API.Conversion.t
 val env : Why3.Env.env Elpi.API.Conversion.t
 
