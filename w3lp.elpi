@@ -42,11 +42,17 @@ external pred why3.lsymb-args-type i:lsymbol, o:list ty.
 external pred why3.search-lsymb i:env, i:string, i:list string, i:string, 
                                 o:lsymbol.
 
+% [why3.data-ty D T] Get the defined type symbol of a datatype declaration.
+external pred why3.data-ty i:data_decl, o:tysymbol.
+
 % [why3.var-name V S] Get the Ident of a variable symbol
 external pred why3.var-name i:var, o:ident.
 
 % [why3.pr-name V S] Get the Ident of a proposition declaration symbol
 external pred why3.pr-name i:prsymbol, o:ident.
+
+% [why3.ty-name T S] Get the Ident of a type symbol
+external pred why3.ty-name i:tysymbol, o:ident.
 
 % [why3.get-attrs I L] 
 % Obtain a list of strings corresponding to the attributes of anidentifier.
@@ -114,9 +120,8 @@ type match term -> list term_branch -> term.
 type branch pattern -> term -> term_branch.
 % Embedding of types
 kind ty type.
-type tvar tv -> ty. % Type variable
+type tabs tv -> (ty -> ty) -> ty.
 type tapp tysymbol -> list ty -> ty.
-
 % Embedding of type symbols. Internal information (Ident, arguments) is
 % not exposed.
 typeabbrev tysymbol (ctype "tysymbol").

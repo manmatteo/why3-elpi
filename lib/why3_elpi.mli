@@ -1,5 +1,3 @@
-val descriptor : Elpi.API.Setup.state_descriptor
-
 (** Embeddings of Why3 types *)
 
 (** Embeddings of terms, types and tasks *)
