@@ -1,0 +1,2 @@
+transform "print" Decls [Decls] :- print Decls.
+transform "nop" Decls [Decls].

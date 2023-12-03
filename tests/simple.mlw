@@ -1,0 +1,89 @@
+type a 'a
+type b
+function toto : b -> a 'a -> bool =
+ fun a b ->
+  true
+
+goal t [@ciao]: true
+
+axiom tata : forall x: b. forall x: a 'a. true
+function foo1 : (a 'a,a 'a) -> (a 'a,a 'a) -> bool =
+ fun a b ->
+ let (a1,a2) = a in
+ let (b1,b2) = b in
+  true
+
+type c
+type toto = {eq: (c,c) -> (c,c) -> c}
+function br (f1: (c,c)) (f2: (c,c)) : toto =
+{eq = fun a b ->
+  let (a1,a2) = a in
+  let (b1,b2) = b in
+  b2
+}
+
+predicate really  = true
+constant x:c
+type queue = abstract { mutable fld: c }
+type eqdec 'a = { eq1 : 'a -> 'a -> bool }
+function ciao (b:c) (x: int) : c
+  = (fun i -> b) x
+
+predicate ff c c c
+function zz int int int : int
+function k int int c : int
+constant zero : int = 0
+constant bao : int = zz 0 1 2
+axiom oe: 0 = zz 0 1 2
+goal one: forall u v w. ff u v w -> (k 0 1 w = 0)
+predicate p
+predicate q
+goal two: p -> q
+use int.Int
+predicate a
+type n
+function z : n
+function s n : n
+predicate sum (x: n) (y: n) (z: n)
+predicate pred (x: n) (y: n)
+predicate f (x: int) (y: int)
+predicate b
+predicate c
+
+goal test2: forall x y. f x y
+axiom fib_1 :  f 1 1
+axiom fib_2 :  f 2 1
+axiom fib_s : (forall x:int.
+    forall v w t:int.  v + w = t -> f (x-1) v -> f (x-2) w ->
+    f x t)
+goal fib: exists x. f 3 x
+
+use int.Int
+predicate f2 (x: int) (y: int)
+goal test: 3-2 = 1
+
+goal ciao: 3+2 = 5
+goal go1: (a -> b) -> a -> b
+
+goal plus:
+  (forall y:n. sum z y y) ->
+  (forall x y:n. sum (s x) y (s y)) ->
+  exists x. sum (s (s z)) (s z) x
+
+function ff2 n n : bool
+axiom pred_1: (forall x:n. pred (s x) x)
+axiom sum_z :  (forall y:n. sum z y y)
+axiom sum_s : (forall x y:n. sum (s x) y (s y))
+axiom fib2_1 :  ff2(s z) (s z)
+axiom fib2_2 : ff2(s (s z)) (s z)
+axiom fib2_s : (forall x:n.
+    exists p:n. pred x p ->
+    exists q:n. pred p q ->
+    exists v:n. ff2 q v ->
+    exists w:n. ff2 p w ->
+    exists t:n. sum w z t ->
+    ff2 x t)
+goal fib2: exists x. ff2(s (s (s (s (s z))))) x
+
+goal typed:
+  (forall x y z:n. sum x y z -> sum y x z)

@@ -15,4 +15,8 @@ jobs:
         ocaml-compiler: 5.1.x
         dune-cache: true
     - name: Build
-      run: opam install why3_elpi
+      run: |
+        opam install . --deps-only
+        opam exec -- dune build
+    - name: Test
+      run: opam exec -- why3 prove -D why3 --extra-config why3extra.conf ./tests/simple.mlw -a "lp nop"
