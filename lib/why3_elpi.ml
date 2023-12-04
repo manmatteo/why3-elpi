@@ -89,11 +89,8 @@ let rec embed_ty =
   let open Elpi.API.RawData in
   match ty.ty_node with
   | Ty.Tyapp (h, l) ->
-    (* Format.printf "embedding vlist %a@." (Pp.print_list Pp.comma Pretty.print_ty) l; *)
     let st, ts, egs = tysym.Elpi.API.Conversion.embed ~depth st h in
     let m,_depth,st,tk, egs = List.fold_left (fun (mapcur,depth,st,k,egs) arg ->
-      (* Format.printf "in fold@.";
-      Format.printf "its this@."; *)
       let mapnew, st, tt, eg = embed_ty ~depth st arg mapcur in 
       let depth = depth + (Mtv.cardinal mapnew) - (Mtv.cardinal mapcur) in
       mapnew,depth,st, k@[tt], eg@egs
@@ -105,7 +102,6 @@ let rec embed_ty =
     | None -> (Ty.Mtv.add v depth map), st, mkBound depth, []
 
 and readback_ty = fun ~depth st tm map ->
-  (* Format.printf "readback_ty %a@." (Elpi.API.RawPp.term depth) tm; *)
   let open Elpi.API.RawData in
   let unsupported msg =
     Format.printf "map is@.";
@@ -197,14 +193,8 @@ let rec embed_pattern = fun ~depth st pat map ->
     map, st, mkApp pwildc typ [], eg
   | Term.Papp (ls, pl) ->
     let st, lsy, eg1 = lsym.Elpi.API.Conversion.embed st ~depth ls in
-    Format.printf "is this just before? depth is %d@." depth;
     let map, st, pl, egs, depth =
       List.fold_right (fun pat (mapcur,st, pl, egs,depth) ->
-      (* let curmap = API.State.get varmap st in *)
-      (* Format.printf "depth is now %d, maxvalue is %d, numvalue is %d@." depth (List.fold_left max 0 (Mvs.values curmap)) (Mvs.cardinal curmap); *)
-      (* (Term.Mvs.iter (fun vs bind -> Format.printf "%a bound to %d@." Pretty.print_vs vs bind) curmap); *)
-      (* let depth = max depth (1 + List.fold_left max 0 (Mvs.values (API.State.get varmap st))) in *)
-      (* Format.printf "depth is now %d, maxvalue is %d, numvalue is %d@." depth (List.fold_left max 0 (Mvs.values curmap)) (Mvs.cardinal curmap); *)
       let mapnew, st, tt, eg = embed_pattern ~depth st pat mapcur in
       let depth = depth + (Mvs.cardinal mapnew) - (Mvs.cardinal mapcur) in
       mapnew, st, mkCons tt pl, eg@egs,depth
@@ -274,14 +264,11 @@ type pabs var -> (term -> term_branch) -> term_branch.
 }
 
 let rec embed_term  = fun ~depth st term map ->
-  (* Format.printf "embedding %a@." Pretty.print_term term;
-  Term.Mvs.iter (fun v i -> Format.printf "%a -> %d@." Pretty.print_vs v i) map; *)
   let unsupported msg =
   Loc.errorm "Term embedding not supported:@.(%s,@. %a)@." msg Pretty.print_term term in
   let open Elpi.API.RawData in
   let open Term in
   let build_binders depth binder vlist embedded_body =
-    Format.fprintf Format.std_formatter "build_binders with %d variables@." (List.length vlist);
     let embedded_body,_end_depth = 
     List.fold_right (fun var ((st, tm, eg),depth) ->
       let st, ty_term, eg1 = ty.embed ~depth st var.vs_ty in
@@ -325,20 +312,6 @@ let rec embed_term  = fun ~depth st term map ->
     let st, term, eg = embed_term ~depth st t map in
     let st, branches, eg1 = map_acc (fun st t -> embed_term_branch ~depth st t map) st branches in
     st, mkApp matchc term [list_to_lp_list branches], eg@eg1
-    (* List.fold_left (fun (st,terms,eg) b ->
-      let pat, tm = Term.t_open_branch b in
-      let st, pat, eg1, branch_map = embed_pattern ~depth st pat in
-      (Mvs.iter (fun v value -> Format.printf "%a -> %d@." Pretty.print_vs v value) map);
-      (Format.printf "pattern: %a@." (Elpi.API.RawPp.term depth) pat);
-      let map = Mvs.set_union map branch_map in
-      let depth = depth + (Mvs.cardinal branch_map) in
-      let st, term, eg2 = aux ~depth st tm map in
-      let st, term , egs = build_binders pabsc (Mvs.keys branch_map) (st, mkApp branchc pat [term], eg@eg1@eg2)
-      in
-      st, (mkCons term terms), egs
-      (* st, mkCons pat pats, mkCons term terms, eg@eg1@eg2 *)
-    ) (st,mkNil,[]) branches
-    in *)
     
   | Term.Teps t ->
     let var, term = Term.t_open_bound t in
@@ -383,8 +356,6 @@ let rec embed_term  = fun ~depth st term map ->
     in st, mkApp op t1 [t2], eg1 @ eg2
 
 and readback_term  = fun ~depth st tm map ->
-  Format.printf "readback_term %a with map:@." (Elpi.API.RawPp.term depth) tm;
-  (* API.RawData.Constants.Map.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map; *)
   let unsupported msg =
   Loc.errorm "Readback not supported for term:@ (%s@, %a)@." msg (Elpi.API.RawPp.term depth) tm
   in
@@ -400,8 +371,6 @@ and readback_term  = fun ~depth st tm map ->
       st, Term.t_quant_close quant (var::vlist) [] bo, eg2 @ eg3
     | _ -> st, Term.t_quant_close quant [var] [] bo, eg2 @ eg3)
   in
-(*Mint.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map;
-  Format.printf "term: %a@." (Elpi.API.RawPp.term depth) tm; *)
   match look ~depth tm with
   | Const c when c == truec -> st, Why3.Term.t_true, []
   | Const c when c == falsec -> st, Why3.Term.t_false, []
@@ -510,9 +479,6 @@ and embed_term_branch = fun ~depth st tb map ->
   let open Elpi.API.RawData in
   let new_map, st, pat, eg1 = embed_pattern ~depth st pat Term.Mvs.empty in
   let new_depth = (depth + Term.Mvs.cardinal new_map) in
-  (* Format.printf "pattern map is (at depth %d@." depth;
-  (Term.Mvs.iter (fun vs bind -> Format.printf "%a -> %d@." Pretty.print_vs vs bind) map);
-  Format.printf "now embed %a at new depth %d@." Pretty.print_term tm new_depth; *)
   let st, tm, eg2 = embed_term ~depth:new_depth st tm (Term.Mvs.set_union map new_map) in
   Term.Mvs.fold (fun vs _vn (st, tm, egs) ->
     let st, vs, eg = vsym.embed ~depth st vs in
@@ -532,8 +498,6 @@ and readback_term_branch = fun ~depth st tb map ->
     | Lam t -> let st,tm, eg1 = readback_term_branch ~depth:(depth+1) st t map in st, tm, eg@eg1
     | _ -> unsupported "")
   | App (c, pat, [tm]) when c = branchc ->
-    (* Format.printf "readback branch@ %a@." (Elpi.API.RawPp.term depth) tb;
-    Constants.Map.iter (fun k v -> Format.printf "%d -> %a@." k Pretty.print_vs v) map; *)
     let st, pat, eg1 = readback_pattern ~depth st pat map in
     let st, tm, eg2 = readback_term ~depth st tm map in
     st, Term.t_close_branch pat tm, eg1@eg2
@@ -659,7 +623,7 @@ let embed_decl : Decl.decl API.Conversion.embedding = fun ~depth st decl ->
   let open Elpi.API.RawData in
   let open Decl in
   let _dtag = decl.d_tag in     (* TODO *)
-  let _dnews = decl.d_news in   (* TODO! Useful for bound symbols *) (*   Format.printf "The idents introduced in decl: %s@." (Ident.Sid.fold (fun id str -> id.id_string ^ "," ^ str) _dnews ""); *)
+  let _dnews = decl.d_news in   (* TODO! Provides set of idents introduced by this declaration *) (*   Format.printf "The idents introduced in decl: %s@." (Ident.Sid.fold (fun id str -> id.id_string ^ "," ^ str) _dnews ""); *)
   match decl.d_node with
   | Decl.Dtype ty -> let st, tsymb, eg = tysym.embed ~depth st ty in
     st, mkApp tydeclc tsymb [], eg
@@ -706,7 +670,6 @@ let readback_decl : Decl.decl API.Conversion.readback = fun ~depth st decl ->
     st, Decl.create_ty_decl ts, eg
   | App (c, dlist, []) when c = datac -> (* Algebraic data *)
     let st, dlist, eg = (API.BuiltInData.list data_decl).readback ~depth st dlist in
-    (* List.iter (Format.printf "obtained %a @." Pretty.print_data_decl) dlist; *)
     st, Decl.create_data_decl dlist, eg
   | App (c, llist, []) when c = decllc -> (* Defined predicate *)
     let st, dlist, eg = (API.BuiltInData.list logic_decl).readback ~depth st llist in

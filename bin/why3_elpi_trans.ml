@@ -40,7 +40,6 @@ let query (arg: string) (e: Env.env) (t : Task.task) =
   | Failure -> Loc.errorm "elpi: failure"
   | NoMoreSteps -> assert false
   in
-  Format.printf "elpi: output:@ %a\n%!" (Pp.print_list Pp.comma Pretty.print_task) out_task ;
   out_task
 
 exception Arg_parse_type_error of Loc.position * string * exn
