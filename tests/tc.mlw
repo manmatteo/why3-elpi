@@ -1,0 +1,24 @@
+type eq [@class] 'a = { equ : 'a -> 'a -> bool }
+
+constant bool_eq [@instance] : eq bool = {equ = (fun a b -> (a && b) || (not a && not b))}
+constant int_eq  [@instance] : eq int  = {equ = (fun a b -> a = b)}
+
+function pair_eq [@instance] (f1: eq 'a) (f2: eq 'b) : eq ('a,'b) =
+{equ = fun a b ->
+  let (a1,a2) = a in
+  let (b1,b2) = b in
+  (f1.equ a1 b1) && (f2.equ a2 b2)
+}
+
+goal test_tc : exists i. (equ i) (1,true) (1,true)
+
+use int.Int
+type monoid [@class] 'a = {eq: eq 'a; null : 'a; plus : 'a -> 'a -> 'a }
+constant int_monoid [@instance] : monoid int = {eq = int_eq; null = 0 ; plus = (fun a b -> a + b)}
+
+type group [@class] 'a = {monoid : monoid 'a; inv : 'a -> 'a}
+(* axiom group_axiom : forall i. forall a. i.monoid.plus a (i.inv a) = i.monoid.null *)
+constant int_group [@instance] : group int = {monoid = int_monoid ; inv = (fun a -> -a)}
+
+goal test_tc2 : exists i. exists j. exists k. exists l.
+                (i.equ (j.plus (k.inv 1) 1) l.null) 

@@ -1,0 +1,53 @@
+transform "tc" Decls [DeclsOut] :-
+  std.map-filter Decls get-class-ty ClassTypes,
+  std.map ClassTypes (x\ y\ y = is-class-ty x) ClassProp,
+  find-goal Decls (goal Name GoalTerm) Rest,
+  std.filter Decls is-instance Instances,
+  ClassProp => (
+    sigma Cls\
+    std.map Instances compile-instance Cls,
+    Cls => solve-tc GoalTerm FullInstance ComputedInstances,
+    print "solved" FullInstance ComputedInstances),
+  std.append Rest [decl (goal Name FullInstance)] DeclsOut.
+
+pred solve-tc i:term, o:term, o:list tdecl.
+solve-tc (ex Name (tapp TySym _ as Ty) F) FullInstance [decl (axiom PName Tm)|Rest] :-
+  is-class-ty TySym,
+  tc-inst Ty Tm,
+  why3.create-prsymbol {why3.var-name Name} PName,
+  solve-tc (F Tm) FullInstance Rest.
+solve-tc A A [].
+
+pred get-class-ty i:tdecl, o:tysymbol.
+pred is-class-ty i:tysymbol.
+get-class-ty (decl (data [D])) Ty :-
+  why3.data-ty D Ty,
+  why3.ty-name Ty N,
+  why3.get-attrs N A,
+  std.mem A "class".
+
+pred is-instance i:tdecl.
+is-instance (decl (declls [logic LS _Def])) :-
+  why3.lsymb-name LS N,
+  why3.get-attrs N A,
+  std.mem A "instance".
+
+pred compile-instance i:tdecl, o:prop.
+compile-instance (decl (declls [logic LS _Def])) P :-
+  why3.lsymb-full-type LS Ty,
+  compile-aux (pr Ty [lsymb LS]) true P,
+  print "compiled" Ty "to" P.
+pred compile-aux i:pair ty (list term), i:prop, o:prop.
+compile-aux X Y Z :- print "compile" X Y Z, fail.
+pred tc-inst i:ty, o:term.
+compile-aux (pr (tabs _Name Ty) LS) Body (pi x\ Cl x) :-
+  pi x\ compile-aux (pr (Ty x) LS) Body (Cl x).
+compile-aux (pr (tapp arr [Ty1, Ty2]) H) Body (pi x\ Cl x) :-
+  pi x\ sigma L\
+  std.append H [x] L,
+  compile-aux (pr Ty2 L) (tc-inst Ty1 x, Body) (Cl x).
+compile-aux (pr Head [lsymb LS | Args]) Body (ClauseHead :- Body) :-
+  Head = tapp TySym _Body,
+  std.rev Args RArgs,
+  ClauseHead = (tc-inst Head (appl LS RArgs)),
+  is-class-ty TySym.
