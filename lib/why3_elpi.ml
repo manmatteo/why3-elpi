@@ -77,7 +77,7 @@ let tysym : Ty.tysymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   compare = Ty.ts_compare;
   hash = Hashtbl.hash;
   hconsed = false;
-  constants = [] (* Are these helpful? [("arr", Ty.ts_func); ("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
+  constants = [("arr", Ty.ts_func)] (* [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
 }
 
 (* Vars are collected at the bottom and then abstracted in one pass at the end,
@@ -137,7 +137,8 @@ and ty : Ty.ty API.Conversion.t =
 {|%% Embedding of types
 kind ty type.
 type tabs tv -> (ty -> ty) -> ty.
-type tapp tysymbol -> list ty -> ty.|});
+type tapp tysymbol -> list ty -> ty.
+type arr tysymbol. %% Arrow type constructor|});
   readback = (fun ~depth st tm -> readback_ty ~depth st tm API.RawData.Constants.Map.empty);
   embed = 
   (fun ~depth st ty ->
@@ -161,7 +162,7 @@ let lsym : Term.lsymbol Elpi.API.Conversion.t = Elpi.API.OpaqueData.declare {
   compare = Term.ls_compare;
   hash = Term.ls_hash;
   hconsed = false;
-  constants = [];
+  constants = [("infix_at", Term.fs_func_app)];
 }
 
 (** As before, we embed variable symbols as an OpaqueData so their type can only
@@ -452,6 +453,7 @@ and term : Term.term API.Conversion.t = {
 type lsymb lsymbol -> term.
 type tint int -> term.
 type tstr string -> term.
+type infix_at lsymbol.
 type appl lsymbol -> list term -> term.
 type and term -> term -> term.
 type or  term -> term -> term.
@@ -819,27 +821,27 @@ let why3_builtin_declarations =
             DocAbove);
     MLCode
       ( Pred ( "why3.create-prsymbol",
-            In  (string, "S",
+            In  (ident, "I",
             Out (prsymbol, "P",
-            Easy "Create a fresh prsymbol from a string" )),
-            fun name _ ~depth:_ -> !: (Decl.create_prsymbol (Ident.id_fresh name))),
+            Easy "Create a fresh prsymbol by cloning the ident" )),
+            fun name _ ~depth:_ -> !: (Decl.create_prsymbol (Ident.id_clone name))),
         DocAbove );
     MLCode
       ( Pred ( "why3.create-prop",
-            In  (string,   "N",
+            In  (ident,   "I",
             In  (list ty,  "TS",
             Out (lsym,       "N",
-            Easy "Axiomatize a propositional symbol with name N and argument types TS" ))),
-            fun name ts _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts None)),
+            Easy "Axiomatize a propositional symbol by cloning the ident I and with argument types TS" ))),
+            fun name ts _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_clone name) ts None)),
         DocAbove );
     MLCode
       ( Pred ( "why3.create-lsymb",
-            In  (string,   "N",
+            In  (ident,   "I",
             In  (list ty,  "TS",
             In  (ty,  "T",
             Out (lsym,       "N",
-            Easy "Axiomatize a function symbol with name N, type T and argument types TS" )))),
-            fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_fresh name) ts (Some t))),
+            Easy "Axiomatize a function symbol by cloning the ident I, with type T and argument types TS" )))),
+            fun name ts t _ ~depth:_ -> !: (Term.create_lsymbol (Ident.id_clone name) ts (Some t))),
         DocAbove );
     MLCode
       ( Pred ( "why3.var-type",
@@ -868,6 +870,17 @@ let why3_builtin_declarations =
             Out (list ty, "T",
             Easy "Get the list of the argument types of a predicate symbol" )),
             fun s _ ~depth:_ -> !: (s.ls_args)),
+        DocAbove );
+    MLCode
+      ( Pred ( "why3.lsymb-full-type",
+            In  (lsym, "L",
+            Out (ty, "T",
+            Easy "Get the full type of a predicate symbol (argument types -> return type)" )),
+            fun s _ ~depth:_ -> !: (
+              match s.ls_value with
+              | Some vty ->
+                 List.fold_left (fun acc ty -> Ty.ty_func ty acc) vty s.ls_args
+              | None -> raise No_clause)),
         DocAbove );
     MLCode
       ( Pred ( "why3.search-lsymb",

@@ -12,16 +12,16 @@ external pred why3.decl->string i:decl, o:string.
 % [why3.create-ident S I] Create and register a fresh ident from a string
 external pred why3.create-ident i:string, o:ident.
 
-% [why3.create-prsymbol S P] Create a fresh prsymbol from a string
-external pred why3.create-prsymbol i:string, o:prsymbol.
+% [why3.create-prsymbol I P] Create a fresh prsymbol by cloning the ident
+external pred why3.create-prsymbol i:ident, o:prsymbol.
 
-% [why3.create-prop N TS N] Axiomatize a propositional symbol with name N
-% and argument types TS
-external pred why3.create-prop i:string, i:list ty, o:lsymbol.
+% [why3.create-prop I TS N] Axiomatize a propositional symbol by cloning the
+% ident I and with argument types TS
+external pred why3.create-prop i:ident, i:list ty, o:lsymbol.
 
-% [why3.create-lsymb N TS T N] Axiomatize a function symbol with name N,
-% type T and argument types TS
-external pred why3.create-lsymb i:string, i:list ty, i:ty, o:lsymbol.
+% [why3.create-lsymb I TS T N] Axiomatize a function symbol by cloning the
+% ident I, with type T and argument types TS
+external pred why3.create-lsymb i:ident, i:list ty, i:ty, o:lsymbol.
 
 % [why3.var-type V T] Get the type of a variable
 external pred why3.var-type i:var, o:ty.
@@ -35,6 +35,10 @@ external pred why3.lsymb-type i:lsymbol, o:ty.
 % [why3.lsymb-args-type L T] Get the list of the argument types of a
 % predicate symbol
 external pred why3.lsymb-args-type i:lsymbol, o:list ty.
+
+% [why3.lsymb-full-type L T] Get the full type of a predicate symbol
+% (argument types -> return type)
+external pred why3.lsymb-full-type i:lsymbol, o:ty.
 
 % [why3.search-lsymb E T N S L] 
 % Look for a symbol in the environment. The theory T andnamespace N where
@@ -95,6 +99,7 @@ kind term_branch type.
 % accessed via native predicates.
 typeabbrev lsymbol (ctype "lsymbol").
 
+type infix_at lsymbol.
 
 % Embedding of variable symbols
 typeabbrev var (ctype "var").
@@ -104,6 +109,7 @@ kind term type.
 type lsymb lsymbol -> term.
 type tint int -> term.
 type tstr string -> term.
+type infix_at lsymbol.
 type appl lsymbol -> list term -> term.
 type and term -> term -> term.
 type or  term -> term -> term.
@@ -122,10 +128,12 @@ type branch pattern -> term -> term_branch.
 kind ty type.
 type tabs tv -> (ty -> ty) -> ty.
 type tapp tysymbol -> list ty -> ty.
+type arr tysymbol. % Arrow type constructor
 % Embedding of type symbols. Internal information (Ident, arguments) is
 % not exposed.
 typeabbrev tysymbol (ctype "tysymbol").
 
+type arr tysymbol.
 
 % Variables in polymorphic types.
 typeabbrev tv (ctype "tv").
