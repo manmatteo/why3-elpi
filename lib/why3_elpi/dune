@@ -1,0 +1,39 @@
+(library
+ (name why3_elpi)
+ (libraries re ppxlib elpi why3)
+ (preprocess (pps ppx_elpi))
+ (ppx_runtime_libraries elpi)
+)
+(data_only_dirs why3_types)
+
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+
+(rule
+  (target why3_elpi.ml)
+  (deps generator/pp.exe why3_types/ident.ml why3_types/ty.ml why3_types/term.ml why3_types/env.ml why3_types/task.ml why3_types/theory.ml why3_types/decl.ml
+                         manual/header.ml manual/ty.ml manual/decl.ml manual/theory.ml manual/task.ml) 
+  (action  (pipe-stdout
+    (bash "cat manual/header.ml > why3_elpi.ml")
+    (run generator/pp.exe -reconcile why3_types/ident.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/ident.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //'>> why3_elpi.ml"))
+    (run generator/pp.exe -reconcile why3_types/ty.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/ty.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    (bash "cat manual/ty.ml >> why3_elpi.ml")
+    (run generator/pp.exe -reconcile why3_types/term.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/term.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    (run generator/pp.exe -reconcile why3_types/decl.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/decl.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    (bash "cat manual/decl.ml >> why3_elpi.ml")
+    (run generator/pp.exe -reconcile why3_types/theory.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/theory.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    (bash "cat manual/theory.ml >> why3_elpi.ml")
+    (run generator/pp.exe -reconcile why3_types/task.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/task.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    (bash "cat manual/task.ml >> why3_elpi.ml")
+    (run generator/pp.exe -reconcile why3_types/env.ml)
+    (with-accepted-exit-codes 1 (bash "diff why3_types/env.ml - | sed -e '/^> #/d' -e '/^>/!d' -e 's/^> //' >> why3_elpi.ml"))
+    )
+  )
+)
