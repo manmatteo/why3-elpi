@@ -1,0 +1,3 @@
+pin-depends: [
+  [ "elpi.ppx-dev" "git+https://github.com/Gopiandcode/elpi#reocaml-elpi" ]
+]
