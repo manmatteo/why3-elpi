@@ -1,0 +1,5 @@
+(executable
+ (name pp)
+ (modules pp)
+ (promote)
+ (libraries elpi.ppx ppxlib))
