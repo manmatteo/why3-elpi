@@ -24,7 +24,7 @@ type vsymbol = {
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
-}] [@@deriving elpi]
+}] [@@deriving elpi {declaration}]
 
 module Vsym = MakeMSHW (struct
   type t = vsymbol
@@ -61,7 +61,7 @@ type lsymbol = {
   hash = ls_hash;
   hconsed = false;
   constants = [("infix_at", fs_func_app)];
-}] [@@deriving elpi]
+}] [@@deriving elpi {declaration}]
 
 module Lsym = MakeMSHW (struct
   type t = lsymbol
@@ -272,7 +272,7 @@ type term = {
   hash = (fun _ -> 0);
   hconsed = false;
   constants = [];
-}] [@@deriving elpi]
+}] [@@deriving elpi {declaration}]
 
 
 (* term equality modulo alpha-equivalence and location *)

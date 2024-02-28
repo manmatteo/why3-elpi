@@ -168,7 +168,7 @@ type ident = {
   hconsed = false;
   constants = [];
 }]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 
 module Id = MakeMSHW (struct

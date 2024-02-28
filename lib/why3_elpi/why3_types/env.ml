@@ -39,7 +39,7 @@ type env = {
   hash = (fun e -> Weakhtbl.tag_hash (env_tag e));
   hconsed = false;
   constants = [];
-}] [@@deriving elpi]
+}] [@@deriving elpi {declaration}]
 
 let env_tag env = env.env_tag
 

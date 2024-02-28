@@ -25,7 +25,7 @@ type tvsymbol = {
   hconsed = false;
   constants = [];
 }]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 module Tvar = MakeMSHW (struct
   type t = tvsymbol
