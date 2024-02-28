@@ -29,7 +29,7 @@ type data_decl = tysymbol * constructor list
   hconsed = false;
   constants = [];
 }]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 (** Logic declaration *)
 
@@ -304,7 +304,7 @@ type prsymbol = {
   hconsed = false;
   constants = [];
 }]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 module Prop = MakeMSHW (struct
   type t = prsymbol
@@ -338,11 +338,11 @@ type prop_kind =
   | Plemma -> Format.fprintf fmt "lemma"
   | Paxiom -> Format.fprintf fmt "axiom"
   | Pgoal  -> Format.fprintf fmt "goal"]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 type prop_decl = prop_kind * prsymbol * term
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<prop_decl>"]
-[@@deriving elpi]
+[@@deriving elpi {declaration}]
 
 (** Declaration type *)
 
