@@ -2,4 +2,4 @@
  (name pp)
  (modules pp)
  (promote)
- (libraries elpi.ppx ppxlib))
+ (libraries ppx_elpi ppxlib))
