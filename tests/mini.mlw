@@ -1,0 +1,7 @@
+type a 'a
+type b
+type c = a b
+function toto : b -> a 'a -> bool =
+ fun a b ->
+  true
+goal t [@ciao]: true
