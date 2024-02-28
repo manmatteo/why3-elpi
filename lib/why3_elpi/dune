@@ -1,7 +1,7 @@
 (library
  (name why3_elpi)
  (libraries re ppxlib elpi why3)
- (preprocess (pps ppx_elpi))
+; (preprocess (pps ppx_elpi)) ; doing this manually for now
  (ppx_runtime_libraries elpi)
 )
 (data_only_dirs why3_types)
