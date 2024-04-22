@@ -445,7 +445,7 @@ let rec embed_k (module B : Ast_builder.S) c all_kargs all_tmp kargs tmp tys n =
       let elpi__ctx_entry = [%e eapply f (List.map snd @@ list_take n all_kargs) ] in
       let elpi__ctx_key = [%e elpi_to_key ] ~depth: elpi__depth elpi__ctx_entry in
       let elpi__ctx_entry = { Elpi.API.ContextualConversion.entry = elpi__ctx_entry; depth = elpi__depth } in
-      let elpi__state = [%e elpi_push ] ~depth: (elpi__depth + 1) elpi__state elpi__ctx_key elpi__ctx_entry in
+      let elpi__state = [%e elpi_push ] ~depth:elpi__depth elpi__state elpi__ctx_key elpi__ctx_entry in
       let elpi__state, [%p pvar xtmp], [%p pvar y] =
         [%e t] ~depth: (elpi__depth + 1) elpi__hyps elpi__constraints elpi__state [%e ex] in
       let [%p pvar px] = Elpi.API.RawData.mkLam [%e evar xtmp] in
@@ -1383,7 +1383,10 @@ let extras_of_task (module B : Ast_builder.S) { types; names; context; ctx_names
     | Some(name,m,tyd) ->
       let elpi_name = tyd.elpi_name in
       let csts =
-        match tyd.type_decl with Algebraic(x,_) -> x | _ -> error "context ADT must be explicit" in
+        match tyd.type_decl with
+        | Opaque _ -> error "context ADT must be explicit"
+        | Alias _ -> error "alias" 
+        | Algebraic(x,_) -> x in
       Some {
       ty_context_helpers = [
           pstr_module (module_binding ~name:(Located.mk (Some (elpi_map_name name)))
