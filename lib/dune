@@ -1,0 +1,8 @@
+(library
+ (name why3_elpi)
+ (preprocess (pps ppx_elpi))
+ (libraries why3 elpi ty term decl task env))
+
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
