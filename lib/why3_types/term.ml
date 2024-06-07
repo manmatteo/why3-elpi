@@ -4,7 +4,7 @@ open Common
 module WIdent = Why3.Ident
 module WPretty = Why3.Pretty
 module WTy = Why3.Ty
-let declaration = Ty.declaration
+let declaration = ref []
 
 module WTerm  =
 struct
@@ -34,23 +34,12 @@ include Why3.Term
       }
     let _ = vsymbol
     let elpi_embed_vsymbol = vsymbol.Elpi.API.ContextualConversion.embed
-    let _ = elpi_embed_vsymbol
-    let elpi_readback_vsymbol =
-      vsymbol.Elpi.API.ContextualConversion.readback
-    let _ = elpi_readback_vsymbol
+    let elpi_readback_vsymbol = vsymbol.Elpi.API.ContextualConversion.readback
     let elpi_vsymbol = Elpi.API.BuiltIn.MLDataC vsymbol
-    let _ = elpi_vsymbol
-    class ctx_for_vsymbol (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
-      : Ctx_for_vsymbol.t =
+    class ctx_for_vsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_vsymbol.t =
       object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_vsymbol :
-      (Ctx_for_vsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback)
-      =
-      fun ~depth ->
-        fun h ->
-          fun c ->
-            fun s -> (s, ((new ctx_for_vsymbol) h s), c, (List.concat []))
-    let _ = in_ctx_for_vsymbol
+    let (in_ctx_for_vsymbol : (Ctx_for_vsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      fun ~depth:_ h c s -> (s, ((new ctx_for_vsymbol) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_vsymbol])
 
     let elpi_constant_type_lsymbol = "lsymbol"
@@ -87,25 +76,13 @@ include Why3.Term
       let readback ~depth  _ _ s t = readback ~depth s t in
       { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
       }
-    let _ = lsymbol
     let elpi_embed_lsymbol = lsymbol.Elpi.API.ContextualConversion.embed
-    let _ = elpi_embed_lsymbol
-    let elpi_readback_lsymbol =
-      lsymbol.Elpi.API.ContextualConversion.readback
-    let _ = elpi_readback_lsymbol
+    let elpi_readback_lsymbol = lsymbol.Elpi.API.ContextualConversion.readback
     let elpi_lsymbol = Elpi.API.BuiltIn.MLDataC lsymbol
-    let _ = elpi_lsymbol
-    class ctx_for_lsymbol (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
-      : Ctx_for_lsymbol.t =
+    class ctx_for_lsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_lsymbol.t =
       object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_lsymbol :
-      (Ctx_for_lsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback)
-      =
-      fun ~depth ->
-        fun h ->
-          fun c ->
-            fun s -> (s, ((new ctx_for_lsymbol) h s), c, (List.concat []))
-    let _ = in_ctx_for_lsymbol
+    let (in_ctx_for_lsymbol : (Ctx_for_lsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      fun ~depth h c s -> (s, ((new ctx_for_lsymbol) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_lsymbol])
 
     let elpi_constant_type_quant = "quant"
@@ -202,15 +179,6 @@ include Why3.Term
     let () = declaration := ((!declaration) @ [elpi_binop])
 end
 
-module Ident_tags = struct
-  open Why3.Ident
-  type t = ident
-  let compare = compare
-  let hash = Hashtbl.hash
-  let equal = (=)
-  let pp = fun fmt x -> Format.fprintf fmt "`%s`" x.id_string
-  let show = fun x -> x.id_string
-end
 module Vsym_tags = struct
   open Why3.Term
   type t = vsymbol
@@ -221,29 +189,16 @@ module Vsym_tags = struct
   let show = fun x -> x.vs_name.id_string
 end
 
-(* type ctx_for_term =
-  | Dctx_ts of (ident[@elpi.key]) * tysymbol
-  | Dctx_ls of (ident[@elpi.key]) * lsymbol
-[@@elpi.index (module Ident_tags)] *)
-
 type ctx_for_term =
-| Dctx_vs of (WTerm.vsymbol[@elpi.key]) * WTerm.lsymbol
+| Dctx_vs of (WTerm.vsymbol[@elpi.key]) [@elpi.code "ctx_vs" "term -> var -> prop"]
 [@@elpi.index (module Vsym_tags)]
 [@@deriving elpi {declaration}]
-[@@elpi.pp fun fmt _ -> Format.fprintf fmt "<term_context>"]
+[@@elpi.pp fun fmt v -> match v with Dctx_vs v -> Format.fprintf fmt "%a" WPretty.print_vs v]
 let pp_ctx_for_term = fun fmt c -> ctx_for_term.pp fmt (0,c)
-
-(* let var_to_ctx_entry (v:vsymbol) : ctx_for_term =
-  let id = v.vs_name in
-  let ls = create_lsymbol (id_clone id) [] (Some v.vs_ty) in
-  Dctx_ls (id, ls) *)
 
 let ctx_entry_to_var (c:ctx_for_term) : WTerm.vsymbol =
   match c with
-  | Dctx_vs (v, _ls) -> v
-    (* (match ls.ls_value with
-    | Some t -> create_vsymbol (id_clone id) t
-    |_ -> assert false) *)
+  | Dctx_vs v -> v
 
 type why_simple_pattern =
   | Pwild
@@ -279,26 +234,26 @@ let rec simple_pattern_to_pattern p ty =
   | Por (p1, p2) -> WTerm.pat_or (simple_pattern_to_pattern p1 ty) (simple_pattern_to_pattern p2 ty)
   | Pas (p, v) -> WTerm.pat_as (simple_pattern_to_pattern p ty) v
 
-
 type why_simple_term =
   | Tvar of WTerm.vsymbol [@elpi.var ctx_for_term]
   | Tint of int
   | Tapp of WTerm.lsymbol * why_simple_term list
-  | Tquant of WTerm.quant * WTerm.vsymbol  * (why_simple_term [@elpi.binder "term" ctx_for_term (fun _q v -> Dctx_vs (v, WTerm.create_lsymbol (WIdent.id_clone v.vs_name) [] (Some v.vs_ty)))])
-  | Teps of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs (v, WTerm.create_lsymbol (WIdent.id_clone v.vs_name) [] (Some v.vs_ty)))])
+  | Tquant of WTerm.quant * WTerm.vsymbol  * (why_simple_term [@elpi.binder "term" ctx_for_term (fun _q v -> Dctx_vs v)])
+  | Teps of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs v)])
   | Ttrue | Tfalse
   | Tbinop of WTerm.binop * why_simple_term * why_simple_term
+  | Tif of why_simple_term * why_simple_term * why_simple_term
   | Tnot of why_simple_term
   | Tcase of why_simple_term * why_simple_ty * (why_simple_pattern * why_simple_term) list
   (* Explicit binders in pattern matching *)
-  | Pabs of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs (v, WTerm.create_lsymbol (WIdent.id_clone v.vs_name) [] (Some v.vs_ty)))])
-[@@deriving elpi {declaration}]
+  | Pabs of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs v)])
+[@@deriving elpi {declaration; context=[ctx_for_term];}]
 [@@elpi.type_code "term"]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<term>"]
 
 let rec pp_simple_term = 
   fun fmt t -> match t with
-  | Tvar v -> Format.fprintf fmt "%a" WPretty.print_vs v
+  | Tvar v -> Format.fprintf fmt "(%a:%a)" WPretty.print_vs v WPretty.print_ty v.vs_ty
   | Tint n -> Format.fprintf fmt "%d" n
   | Tapp (ls, args) -> Format.fprintf fmt "%a(%a)" WPretty.print_ls ls (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") pp_simple_term) args
   | Tquant (q, v, t) -> Format.fprintf fmt "%a %a. %a" (WPretty.print_quant) q WPretty.print_vs v pp_simple_term t
@@ -306,6 +261,7 @@ let rec pp_simple_term =
   | Ttrue -> Format.fprintf fmt "true"
   | Tfalse -> Format.fprintf fmt "false"
   | Tbinop (op, t1, t2) -> Format.fprintf fmt "(%a %a %a)" pp_simple_term t1 (WPretty.print_binop ~asym:false) op pp_simple_term t2
+  | Tif (t1, t2, t3) -> Format.fprintf fmt "if %a then %a else %a" pp_simple_term t1 pp_simple_term t2 pp_simple_term t3
   | Tnot t -> Format.fprintf fmt "not %a" pp_simple_term t
   | Tcase (t, ty, branches) -> Format.fprintf fmt "case %a : %a of %a" pp_simple_term t why_simple_ty.pp ty (Format.pp_print_list ~pp_sep:Why3.Pp.comma (Why3.Pp.print_pair why_simple_pattern.pp pp_simple_term)) branches
   | Pabs (v, t) -> Format.fprintf fmt "(%a => %a)" WPretty.print_vs v pp_simple_term t
@@ -319,7 +275,7 @@ let rec term_to_simple_term (t : WTerm.term) : why_simple_term =
     | ConstStr _ -> assert false
   )
   | Tapp (ls, args) -> Tapp (ls, List.map term_to_simple_term args)
-  | Tif (_, _, _) -> assert false
+  | Tif (t1, t2, t3) -> Tif (term_to_simple_term t1, term_to_simple_term t2, term_to_simple_term t3)
   | Tlet (_, _) -> assert false
   | Tcase (t, branches) ->
     let first_pattern_type =
@@ -351,12 +307,15 @@ let rec simple_term_to_term (st : why_simple_term) : WTerm.term =
   match st with
   | Tvar v -> WTerm.t_var v
   | Tint n -> WTerm.t_const (Why3.Constant.int_const_of_int n) WTy.ty_int
-  | Tapp (ls, args) -> WTerm.t_app_infer ls (List.map simple_term_to_term args) (* Using t_app without inference might be more efficient, but I had troubles with typing @ applied to typed args*)
+  | Tapp (ls, args) ->
+      let targs = List.map simple_term_to_term args in
+      WTerm.t_app_infer ls targs (* Using t_app without inference might be more efficient, but I had troubles with typing @ applied to typed args*)
   | Tquant (q, v, t) -> let vs, t = consume_quant q t in WTerm.t_quant_close q (v::vs) [] (simple_term_to_term t)
   | Teps (v, t) -> WTerm.t_eps_close v (simple_term_to_term t)
   | Ttrue -> WTerm.t_true
   | Tfalse -> WTerm.t_false
   | Tbinop (op, t1, t2) -> WTerm.t_binary op (simple_term_to_term t1) (simple_term_to_term t2)
+  | Tif (t1, t2, t3) -> WTerm.t_if (simple_term_to_term t1) (simple_term_to_term t2) (simple_term_to_term t3)
   | Tnot t -> WTerm.t_not (simple_term_to_term t)
   | Tcase (t, ty, branches) ->
     let rec strip_branch_binders = function
@@ -374,13 +333,12 @@ let rec simple_term_to_term (st : why_simple_term) : WTerm.term =
 
 let term : 'c 'csts .  (WTerm.term, #Ctx_for_why_simple_term.t as 'c, 'csts) Elpi.API.ContextualConversion.t =
 let open Elpi.API.ContextualConversion in
-  let kind = TyName "why-simple-term" in
+  let kind = TyName "term" in
   {ty = kind;
    pp_doc = why_simple_term.pp_doc;
-   pp = (fun fmt t -> why_simple_term.pp fmt (term_to_simple_term t));
+   pp = WPretty.print_term;
    embed = (fun ~depth h c s t -> elpi_embed_why_simple_term ~depth h c s (term_to_simple_term t));
    readback = (fun ~depth h c s t -> let (a,b,c) = elpi_readback_why_simple_term ~depth h c s t in (a, simple_term_to_term b, c))
   }
-
 let lsymbol = WTerm.lsymbol
 let vsymbol = WTerm.vsymbol

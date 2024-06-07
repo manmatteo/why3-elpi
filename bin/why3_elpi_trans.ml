@@ -23,11 +23,11 @@ class ctx_for_why_simple_term (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state
   method ctx_for_term = context_made_of_ctx_for_term.get s
   end
 
-let query (arg: string) (e: Env.env) (t : Task.task) =
-  let transform_builtins = declaration in
+let query (arg: string) (e: Env.env) quotations (t : Task.task) =
+  let transform_builtins = declaration @ Why3_elpi_builtins.Builtins.why3_builtin_declarations in
   document transform_builtins;
   let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi" (transform_builtins @ Elpi.Builtin.std_declarations)] in
-  let elpi = (API.Setup.init ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
+  let elpi = (API.Setup.init ~quotations ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in
   let loc = Elpi.API.Ast.Loc.initial "(elpi)" in
   let ast = Elpi.API.Parse.program ~elpi ~files:["transform.elpi"] in
   let prog =
@@ -50,7 +50,7 @@ let query (arg: string) (e: Env.env) (t : Task.task) =
 
 exception Arg_parse_type_error of Loc.position * string * exn
 
-(* let build_quotation (naming_table: Trans.naming_table)  : Elpi.API.Quotation.quotation = 
+let why3_quot_from_naming (naming_table: Trans.naming_table)  : Elpi.API.Quotation.quotation = 
   fun ~depth st _loc text ->
    let ns = naming_table.namespace in
    let km = naming_table.known_map in
@@ -62,63 +62,22 @@ exception Arg_parse_type_error of Loc.position * string * exn
        let t = Lexer.parse_term lb in
        Typing.type_term_in_namespace ns km c t
      with Loc.Located (loc, e) -> raise (Arg_parse_type_error (loc, text, e))
-   in let st, t, _ = term.embed ~depth st tm
-   in st, t *)
+    in
+   let st,ctx,csts,_eg = Why3_elpi.in_ctx_for_term ~depth [] Elpi.API.RawData.no_constraints st
+   in let st, t, _ = term.embed ~depth ctx csts st tm
+   in st, t
 
 let elpi_trans : Trans.trans_with_args_l = 
   fun argl env naming_table _name  ->
-  (* let () = API.Quotation.set_default_quotation (build_quotation naming_table) in *)
+  let quot = API.Quotation.new_quotations_descriptor () in
+  let why3_quot = why3_quot_from_naming naming_table in
+  let () = API.Quotation.set_default_quotation why3_quot ~descriptor:quot in
+  let () = API.Quotation.register_named_quotation ~name:"why3" why3_quot ~descriptor:quot in
   match argl with
-  | [arg] -> (Trans.store (query arg env))
+  | [arg] -> (Trans.store (query arg env quot))
   | _ -> Loc.errorm "elpi: wrong number of arguments"
 
 (* let () = Trans.register_transform "elpi_query" elpi_trans
 ~desc:"Run@ a@ simple@ elpi@ command" *)
 let () = Trans.register_transform_with_args_l "lp" elpi_trans
 ~desc:"Run@ a@ simple@ elpi@ command"
-
-(* module String =
-  struct
-    include String
-    let pp fmt s = Format.fprintf fmt "%s" s
-    let show x = x
-  end
-module Elpi_ctx_Map = (Elpi.API.Utils.Map.Make)(String)
-let elpi_ctx_state =
-  Elpi.API.State.declare_component ~name:"prop_decl"
-    ~pp:(fun fmt -> fun _ -> Format.fprintf fmt "TODO")
-    ~init:(fun () -> ((Elpi_ctx_Map.empty : Elpi.API.RawData.constant Elpi_ctx_Map.t),
-               (Elpi.API.RawData.Constants.Map.empty : Why3.Decl.decl Elpi.API.ContextualConversion.ctx_entry Elpi.API.RawData.Constants.Map.t)))
-    ~start:(fun x -> x)
-let elpi_pdecl_to_key ~depth:_  : Decl.prop_decl -> Decl.prsymbol = function (_,prs,_) -> prs
-module Ctx_for_pdecl =
-      struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
-      end
-
-let elpi_is_pdecl { Elpi.API.Data.hdepth = elpi__depth; hsrc = elpi__x } =
-  match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
-  | Elpi.API.RawData.Const _ -> None
-  | Elpi.API.RawData.App (hd, elpi__idx, _) when hd == elpi_constant_type_prop_declc ->
-        (match Elpi.API.RawData.look ~depth:elpi__depth elpi__idx with
-         | Elpi.API.RawData.Const x -> Some x
-         | _ -> Elpi.API.Utils.type_error "context entry applied to a non nominal")
-  | _ -> None
-let context_made_of_pdecl = {
-    Elpi.API.ContextualConversion.is_entry_for_nominal = elpi_is_ctx;
-    to_key = elpi_pdecl_to_key;
-    push = elpi_push_ctx;
-    pop = elpi_pop_ctx;
-    conv = ctx;
-    init = (fun state -> Elpi.API.State.set elpi_ctx_state state ((Elpi_ctx_Map.empty : Elpi.API.RawData.constant Elpi_ctx_Map.t),
-             (Elpi.API.RawData.Constants.Map.empty : ctx Elpi.API.ContextualConversion.ctx_entry Elpi.API.RawData.Constants.Map.t)));
-    get = (fun state -> snd @@ (Elpi.API.State.get elpi_ctx_state state))
-  }
-let elpi_ctx = Elpi.API.BuiltIn.MLDataC ctx
-class ctx_for_ctx (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
-  : Ctx_for_ctx.t =
-  object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-let (in_ctx_for_ctx : (Ctx_for_ctx.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
-  fun ~depth h c s -> (s, ((new ctx_for_ctx) h s), c, (List.concat []))
-let _ = in_ctx_for_ctx
-let () = declaration := ((!declaration) @ [elpi_ctx]) *)
