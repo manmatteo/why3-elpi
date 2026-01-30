@@ -30,6 +30,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/manmatteo/why3-elpi.git"
-pin-depends: [
-  [ "elpi.ppx-dev" "git+https://github.com/Gopiandcode/elpi#reocaml-elpi" ]
-]
+# pin-depends: [
+#   [ "elpi.ppx-dev" "git+https://github.com/Gopiandcode/elpi#reocaml-elpi" ]
+# ]
