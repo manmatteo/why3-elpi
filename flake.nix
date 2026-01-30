@@ -1,59 +1,64 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
     opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
-    # we pin opam-nix's nixpkgs to follow the flakes, avoiding using two different instances
-    opam-nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    # maintain a different opam-repository to those pinned upstream
-    # opam-repository = {
-    #   url = "github:ocaml/opam-repository";
-    #   flake = false;
-    # };
-    # opam-nix.inputs.opam-repository.follows = "opam-repository";
-
-    # deduplicate flakes
-    opam-nix.inputs.flake-utils.follows = "flake-utils";
+    nixpkgs.follows = "opam-nix/nixpkgs";
   };
-  outputs = { self, nixpkgs, flake-utils, opam-nix, ... }@inputs:
-    # create outputs for each default system
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      flake-utils,
+      opam-nix,
+      nixpkgs,
+    }@inputs:
+    # Don't forget to put the package name instead of `throw':
+    let
+      package = "why3_elpi";
+    in
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
-        package = "why3_elpi";
         pkgs = nixpkgs.legacyPackages.${system};
-        opam-nix-lib = opam-nix.lib.${system};
+        on = opam-nix.lib.${system};
         devPackagesQuery = {
+          # You can add "development" packages here. They will get added to the devShell automatically.
           ocaml-lsp-server = "*";
           ocamlformat = "*";
-          utop = "*";
-	  why3 = "*";
-	  elpi = "*";
         };
-        query = {
+        query = devPackagesQuery // {
+          ## You can force versions of certain packages here, e.g:
+          ## - force the ocaml compiler to be taken from opam-repository:
           ocaml-base-compiler = "*";
+          ## - or force the compiler to be taken from nixpkgs and be a certain version:
+          # ocaml-system = "4.14.0";
+          ## - or force ocamlfind to be a certain version:
+          # ocamlfind = "1.9.2";
         };
-        scope =
-          # recursive finds vendored dependancies in duniverse
-          opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
-      in {
-        packages.default = scope.${package};
-        defaultPackage = scope.${package};
+        scope = on.buildOpamProject' { } ./. query;
+        overlay = final: prev: {
+          # You can add overrides here
+          ${package} = prev.${package}.overrideAttrs (_: {
+            # Prevent the ocaml dependencies from leaking into dependent environments
+            doNixSupport = false;
+          });
+        };
+        scope' = scope.overrideScope overlay;
+        # The main package containing the executable
+        main = scope'.${package};
+        # Packages from devPackagesQuery
+        devPackages = builtins.attrValues (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope');
+      in
+      {
+        legacyPackages = scope';
 
-        devShells.default = let
-          devPackages = builtins.attrValues
-            (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
-        in pkgs.mkShell {
-          inputsFrom = [ scope.${package} ];
-          buildInputs = devPackages ++ [ pkgs.git pkgs.bashInteractive ];
-        };
-      }) // {
-        nixosModules = {
-          default.imports = [ (import ./module.nix self.packages) ];
-          acme.imports = [ (import ./acme.nix self.packages) ];
-        };
+        packages.default = main;
 
-        formatter = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed
-          (system: nixpkgs.legacyPackages.${system}.nixfmt);
-      };
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ main ];
+          buildInputs = devPackages ++ [
+            # You can add packages from nixpkgs here
+          ];
+        };
+      }
+    );
 }
