@@ -11,27 +11,27 @@ let why3_builtin_declarations =
   let open Elpi.API.BuiltInPredicate in
   let open Elpi.API.BuiltInPredicate.Notation in
   [MLCode
-      ( CPred ( "why3.var-type", in_ctx_for_ty,
+      ( Pred ( "why3.var-type",
             CIn  (vsymbol, "V",
             COut (ty, "T",
-            CEasy "Get the type of a variable" )),
-            fun var _ ~depth:_ _ctx  _-> !: (var.vs_ty)),
+            Read (in_ctx_for_ty, "Get the type of a variable"))),
+            fun var _ ~depth:_ _ctx _ _ -> !: (var.vs_ty)),
         DocAbove );
   MLCode
-  ( CPred ( "why3.ls-type", in_ctx_for_ty,
+  ( Pred ( "why3.ls-type",
             CIn  (lsymbol, "L",
             COut (ty, "T",
-            CEasy "Get the value type of a logic symbol. Fails if the symbol has no value type (i.e. is a proposition)" )),
-            fun ls _ ~depth:_ _ctx  _-> ?: (ls.ls_value)),
+            Read (in_ctx_for_ty, "Get the value type of a logic symbol. Fails if the symbol has no value type (i.e. is a proposition)"))),
+            fun ls _ ~depth:_ _ctx _ _ -> ?: (ls.ls_value)),
         DocAbove );
   MLCode
-  ( CPred ("why3.pp-term", in_ctx_for_term,
+  ( Pred ("why3.pp-term",
             CIn  (term, "T",
-            COut (Elpi.API.BuiltInContextualData.string, "S",
-            CEasy "Convert a term to string using Why3's pretty printer" )),
-            fun t _ ~depth:_ ctx  _-> !: 
+            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
+            Read (in_ctx_for_term, "Convert a term to string using Why3's pretty printer"))),
+            fun t _ ~depth:_ ctx _ _ -> !: 
              (Format.asprintf "@[<hov>%a@ |-@ %a@]@\n%!"
-      (Elpi.API.RawData.Constants.Map.pp (Elpi.API.ContextualConversion.pp_ctx_entry pp_ctx_for_term)) ctx#ctx_for_term
+      (Elpi_api_compat.pp_ctx_field pp_ctx_for_term) ctx#ctx_for_term
        term.pp t)),
         DocAbove );
   ]

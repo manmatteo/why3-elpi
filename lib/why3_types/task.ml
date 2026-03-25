@@ -3,13 +3,13 @@ let declaration = Theory.declaration
 open Why3.Task
 let embed_task : (task, 'a, 'b) Elpi.API.ContextualConversion.embedding =
   fun ~depth hyp constraints state task ->
-  (Elpi.API.BuiltInContextualData.list tdecl).embed ~depth hyp constraints state (task_tdecls task)
+  (Elpi_api_compat.BuiltInContextualData.list tdecl).embed ~depth hyp constraints state (task_tdecls task)
 
 let readback_task : (task, 'a, 'b) Elpi.API.ContextualConversion.readback =
   let open Elpi.API.ContextualConversion in
   fun ~depth hyp c st term ->
     let st, tdecl_list, eg =
-      (Elpi.API.BuiltInContextualData.list tdecl).readback ~depth hyp c st term in
+      (Elpi_api_compat.BuiltInContextualData.list tdecl).readback ~depth hyp c st term in
     let task = List.fold_left add_tdecl None tdecl_list in
     st, task, eg
 
@@ -36,9 +36,9 @@ let elpi_opaque_data_decl_env =
       constants = [] }
 module Ctx_for_env =
   struct
-    class type t = object inherit Elpi.API.ContextualConversion.ctx end
+    class type t = object inherit Elpi_api_compat.ctx end
   end
-let env : 'c .  (env, #Elpi.API.ContextualConversion.ctx as 'c, 'csts) Elpi.API.ContextualConversion.t =
+let env : 'c .  (env, 'c, 'csts) Elpi.API.ContextualConversion.t =
   let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } = elpi_opaque_data_decl_env in
   let embed ~depth  _ _ s t = embed ~depth s t in
   let readback ~depth  _ _ s t = readback ~depth s t in
@@ -47,7 +47,7 @@ let elpi_embed_env = env.Elpi.API.ContextualConversion.embed
 let elpi_readback_env = env.Elpi.API.ContextualConversion.readback
 let elpi_env = Elpi.API.BuiltIn.MLDataC env
 class ctx_for_env (h : Elpi.API.Data.hyps)  (_s : Elpi.API.Data.state) : Ctx_for_env.t =
-  object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-let in_ctx_for_env : (Ctx_for_env.t, 'csts) Elpi.API.ContextualConversion.ctx_readback =
+  object (_) inherit  ((Elpi_api_compat.ctx) h) end
+let in_ctx_for_env : (Ctx_for_env.t, 'csts) Elpi_api_compat.ctx_readback =
   fun ~depth:_ h c s -> (s, ((new ctx_for_env) h s), c, [])
 let () = declaration := ((!declaration) @ [elpi_env])

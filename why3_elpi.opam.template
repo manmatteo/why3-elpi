@@ -1,3 +1,0 @@
-pin-depends: [
-  ["elpi.dev" "git+https://github.com/Gopiandcode/elpi.git#2fb9000f66109b2bed07965793154d647e4b7b47"]
-]

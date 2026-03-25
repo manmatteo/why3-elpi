@@ -1,7 +1,13 @@
 (library
+ (name elpi_api_compat)
+ (modules elpi_api_compat)
+ (libraries elpi))
+
+(library
  (name why3_elpi)
+ (modules why3_elpi builtins)
  (preprocess (pps ppx_elpi))
- (libraries why3 elpi ty term decl task env))
+ (libraries why3 elpi elpi_api_compat ty term decl task env))
 
 (env
   (dev

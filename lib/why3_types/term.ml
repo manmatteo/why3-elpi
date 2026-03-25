@@ -21,9 +21,9 @@ include Why3.Term
           constants = [] }
     module Ctx_for_vsymbol =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
-    let vsymbol : 'c .  (vsymbol, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+    let vsymbol : 'c .  (vsymbol, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -37,8 +37,8 @@ include Why3.Term
     let elpi_readback_vsymbol = vsymbol.Elpi.API.ContextualConversion.readback
     let elpi_vsymbol = Elpi.API.BuiltIn.MLDataC vsymbol
     class ctx_for_vsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_vsymbol.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_vsymbol : (Ctx_for_vsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
+    let (in_ctx_for_vsymbol : (Ctx_for_vsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth:_ h c s -> (s, ((new ctx_for_vsymbol) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_vsymbol])
 
@@ -63,11 +63,11 @@ include Why3.Term
     let _ = elpi_opaque_data_decl_lsymbol
     module Ctx_for_lsymbol =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let lsymbol :
       'c .
-        (lsymbol, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (lsymbol, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -80,8 +80,8 @@ include Why3.Term
     let elpi_readback_lsymbol = lsymbol.Elpi.API.ContextualConversion.readback
     let elpi_lsymbol = Elpi.API.BuiltIn.MLDataC lsymbol
     class ctx_for_lsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_lsymbol.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_lsymbol : (Ctx_for_lsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
+    let (in_ctx_for_lsymbol : (Ctx_for_lsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth h c s -> (s, ((new ctx_for_lsymbol) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_lsymbol])
 
@@ -93,26 +93,26 @@ include Why3.Term
     let elpi_constant_constructor_quant_Texistsc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_quant_Texists
     module Ctx_for_quant =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
-    let rec elpi_embed_quant : 'c 'csts .  (quant, #Ctx_for_quant.t as 'c, 'csts) Elpi.API.ContextualConversion.embedding =
+    let rec elpi_embed_quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.embedding =
       fun ~depth:elpi__depth -> fun elpi__hyps -> fun elpi__constraints -> fun elpi__state ->
               function
-              | Tforall -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_quant_Tforallc []), (List.concat []))
-              | Texists -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_quant_Texistsc []), (List.concat []))
-    and elpi_readback_quant : 'c 'csts .  (quant, #Ctx_for_quant.t as 'c, 'csts) Elpi.API.ContextualConversion.readback =
+              | Tforall -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_quant_Tforallc []), (List.concat []))
+              | Texists -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_quant_Texistsc []), (List.concat []))
+    and elpi_readback_quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.readback =
       fun ~depth:elpi__depth -> fun elpi__hyps -> fun elpi__constraints -> fun elpi__state -> fun elpi__x ->
                 match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
                 | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_quant_Tforallc -> (elpi__state, Tforall, [])
                 | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_quant_Texistsc -> (elpi__state, Texists, [])
                 | _ -> Elpi.API.Utils.type_error (Format.asprintf "Not a constructor of type %s: %a" "quant" (Elpi.API.RawPp.term elpi__depth) elpi__x)
-    and quant : 'c 'csts .  (quant, #Ctx_for_quant.t as 'c, 'csts) Elpi.API.ContextualConversion.t =
+    and quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.t =
       let kind = Elpi.API.ContextualConversion.TyName "quant" in {
         Elpi.API.ContextualConversion.ty = kind;
         pp_doc = (fun fmt -> fun () ->
-               Elpi.API.PPX.Doc.kind fmt kind ~doc:"quant";
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"tforall" ~doc:"Tforall" ~args:[];
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"texists" ~doc:"Texists" ~args:[]);
+               Elpi_api_compat.Doc.kind fmt kind ~doc:"quant";
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tforall" ~doc:"Tforall" ~args:[];
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"texists" ~doc:"Texists" ~args:[]);
         pp = (fun fmt ->
              function
              | Tforall -> Format.fprintf fmt "\226\136\128"
@@ -122,8 +122,8 @@ include Why3.Term
       }
     let elpi_quant = Elpi.API.BuiltIn.MLDataC quant
     class ctx_for_quant (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state) : Ctx_for_quant.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_quant : (Ctx_for_quant.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
+    let (in_ctx_for_quant : (Ctx_for_quant.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth -> fun h -> fun c -> fun s -> (s, ((new ctx_for_quant) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_quant])
 
@@ -138,16 +138,16 @@ include Why3.Term
     let elpi_constant_constructor_binop_Tiffc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_binop_Tiff
     module Ctx_for_binop =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
-    let rec elpi_embed_binop : 'c 'csts .  (binop, #Ctx_for_binop.t as 'c, 'csts) Elpi.API.ContextualConversion.embedding =
+    let rec elpi_embed_binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.embedding =
       fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state ->
               function
-              | Tand -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_binop_Tandc []), (List.concat []))
-              | Tor -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_binop_Torc []), (List.concat []))
-              | Timplies -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_binop_Timpliesc []), (List.concat []))
-              | Tiff -> (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_binop_Tiffc []), (List.concat []))
-    and elpi_readback_binop : 'c 'csts .  (binop, #Ctx_for_binop.t as 'c, 'csts) Elpi.API.ContextualConversion.readback =
+              | Tand -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Tandc []), (List.concat []))
+              | Tor -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Torc []), (List.concat []))
+              | Timplies -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Timpliesc []), (List.concat []))
+              | Tiff -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Tiffc []), (List.concat []))
+    and elpi_readback_binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.readback =
       fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__x ->
                 match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
                 | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Tandc -> (elpi__state, Tand, [])
@@ -155,26 +155,26 @@ include Why3.Term
                 | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Timpliesc -> (elpi__state, Timplies, [])
                 | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Tiffc -> (elpi__state, Tiff, [])
                 | _ -> Elpi.API.Utils.type_error (Format.asprintf "Not a constructor of type %s: %a" "binop" (Elpi.API.RawPp.term elpi__depth) elpi__x)
-    and binop : 'c 'csts .  (binop, #Ctx_for_binop.t as 'c, 'csts) Elpi.API.ContextualConversion.t =
+    and binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.t =
       let kind = Elpi.API.ContextualConversion.TyName "binop" in
       {
         Elpi.API.ContextualConversion.ty = kind;
         pp_doc =
           (fun fmt ->
              fun () ->
-               Elpi.API.PPX.Doc.kind fmt kind ~doc:"binop";
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"tand" ~doc:"Tand" ~args:[];
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"tor" ~doc:"Tor" ~args:[];
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"timplies" ~doc:"Timplies" ~args:[];
-               Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"tiff" ~doc:"Tiff" ~args:[]);
+               Elpi_api_compat.Doc.kind fmt kind ~doc:"binop";
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tand" ~doc:"Tand" ~args:[];
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tor" ~doc:"Tor" ~args:[];
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"timplies" ~doc:"Timplies" ~args:[];
+               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tiff" ~doc:"Tiff" ~args:[]);
         pp = (fun fmt -> function | Tand -> Format.fprintf fmt "/\\" | Tor -> Format.fprintf fmt "\\/" | Timplies -> Format.fprintf fmt "=>" | Tiff -> Format.fprintf fmt "<=>");
         embed = elpi_embed_binop;
         readback = elpi_readback_binop
       }
     let elpi_binop = Elpi.API.BuiltIn.MLDataC binop
     class ctx_for_binop (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state) : Ctx_for_binop.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-    let (in_ctx_for_binop : (Ctx_for_binop.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
+    let (in_ctx_for_binop : (Ctx_for_binop.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth h c s -> (s, ((new ctx_for_binop) h s), c, (List.concat []))
     let () = declaration := ((!declaration) @ [elpi_binop])
 end
@@ -331,7 +331,7 @@ let rec simple_term_to_term (st : why_simple_term) : WTerm.term =
     WTerm.t_case (simple_term_to_term t) (List.map simple_term_to_term_branch branches)
   | Pabs (_, _) -> assert false (* Should only appear in branches and be consumed by the branch reconstructor *)
 
-let term : 'c 'csts .  (WTerm.term, #Ctx_for_why_simple_term.t as 'c, 'csts) Elpi.API.ContextualConversion.t =
+let term : 'c 'csts .  (WTerm.term, 'c, 'csts) Elpi.API.ContextualConversion.t =
 let open Elpi.API.ContextualConversion in
   let kind = TyName "term" in
   {ty = kind;

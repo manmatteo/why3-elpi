@@ -23,7 +23,7 @@ include
         elpi_constant_constructor_tctx_Entry
     module Elpi_tctx_Map = (Elpi.API.Utils.Map.Make)(String)
     let elpi_tctx_state =
-      Elpi.API.State.declare ~name:"tctx"
+      Elpi.API.State.declare_component ~name:"tctx"
         ~pp:(fun fmt -> fun _ -> Format.fprintf fmt "TODO")
         ~init:(fun () ->
                  ((Elpi_tctx_Map.empty : Elpi.API.RawData.constant
@@ -31,7 +31,7 @@ include
                    (Elpi.API.RawData.Constants.Map.empty : tctx
                                                              Elpi.API.ContextualConversion.ctx_entry
                                                              Elpi.API.RawData.Constants.Map.t)))
-        ~start:(fun x -> x)
+                                                ~start:(fun x -> x) ()
     let elpi_tctx_to_key ~depth:_  =
       function | Entry (elpi__16, _) -> elpi__16
     let elpi_is_tctx { Elpi.API.Data.hdepth = elpi__depth; hsrc = elpi__x } =
