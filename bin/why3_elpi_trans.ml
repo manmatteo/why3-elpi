@@ -24,7 +24,7 @@ class ctx_for_why_simple_term (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state
   end
 
 let query (arg: string) (e: Env.env) quotations (t : Task.task) =
-  let transform_builtins = declaration @ Why3_elpi_builtins.Builtins.why3_builtin_declarations in
+  let transform_builtins = declaration @ why3_builtin_declarations in
   document transform_builtins;
   let builtins = [Elpi.API.BuiltIn.declare ~file_name:"builtins.elpi" (transform_builtins @ Elpi.Builtin.std_declarations)] in
   let elpi = (API.Setup.init ~quotations ~builtins ~file_resolver:(Elpi.API.Parse.std_resolver ~paths:[] ()) ()) in

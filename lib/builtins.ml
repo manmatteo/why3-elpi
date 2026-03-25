@@ -1,4 +1,10 @@
-open Why3_elpi
+open Term
+open Ty
+
+let in_ctx_for_ty = Ty.in_ctx_for_why_simple_ty
+let in_ctx_for_term = Term.in_ctx_for_why_simple_term
+let pp_ctx_for_term = Term.pp_ctx_for_term
+
 let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
   let open Elpi.API.BuiltInData in
