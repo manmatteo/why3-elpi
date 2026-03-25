@@ -3,6 +3,7 @@
 
 (** Declarations of builtin predicates and types *)
 val declaration : Elpi.API.BuiltIn.declaration list
+val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
 val document : Elpi.API.BuiltIn.declaration list -> unit
 
 type ctx_for_term = Term.ctx_for_term

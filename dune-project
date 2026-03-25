@@ -1,4 +1,4 @@
-(lang dune 3.7)
+(lang dune 3.15)
 
 (name why3_elpi)
 
@@ -17,7 +17,13 @@
  (name why3_elpi)
  (synopsis "Access the Why3 API from Elpi")
  (description "Bindings to the Why3 API in λProlog using the Elpi library.")
- (depends ocaml dune why3 elpi)
-(allow_empty)
+ 
+ (depends
+  ocaml
+  dune
+  why3
+  elpi)
+ (allow_empty)
  (tags
   (topics "to describe" your project)))
+ 

@@ -21,25 +21,30 @@
         pkgs = nixpkgs.legacyPackages.${system};
         on = opam-nix.lib.${system};
         devPackagesQuery = {
-          # You can add "development" packages here. They will get added to the devShell automatically.
           ocaml-lsp-server = "*";
           ocamlformat = "*";
         };
         query = devPackagesQuery // {
-          ## You can force versions of certain packages here, e.g:
-          ## - force the ocaml compiler to be taken from opam-repository:
           ocaml-base-compiler = "*";
-          ## - or force the compiler to be taken from nixpkgs and be a certain version:
-          # ocaml-system = "4.14.0";
-          ## - or force ocamlfind to be a certain version:
-          # ocamlfind = "1.9.2";
+          # The pinned elpi branch requires atdgen but doesn't declare it in its opam file
+          atdgen = "*";
+          "atdgen-runtime" = "*";
         };
-        scope = on.buildOpamProject' { } ./. query;
+        scope = on.buildOpamProject' { pinDepends = true; } ./. query;
         overlay = final: prev: {
           # You can add overrides here
           ${package} = prev.${package}.overrideAttrs (_: {
             # Prevent the ocaml dependencies from leaking into dependent environments
             doNixSupport = false;
+          });
+          # The pinned elpi branch uses atdgen in its dune file but omits it from
+          # its opam depends; also, at atdgen 2.x the OCaml library is in
+          # atdgen-runtime. Patch src/dune and add atdgen-runtime.
+          elpi = prev.elpi.overrideAttrs (old: {
+            buildInputs = (old.buildInputs or []) ++ [ prev."atdgen-runtime" ];
+            prePatch = (old.prePatch or "") + ''
+              sed -i 's/(libraries yojson atdgen re)/(libraries yojson atdgen-runtime re)/g' src/dune
+            '';
           });
         };
         scope' = scope.overrideScope overlay;
