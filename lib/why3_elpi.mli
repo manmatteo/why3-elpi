@@ -19,19 +19,19 @@ module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
       end
   end *)
 val ctx_for_term : (int * ctx_for_term, 'a, 'b) Elpi.API.ContextualConversion.t
-val context_made_of_ctx_for_term : (ctx_for_term, Why3.Term.vsymbol, #Elpi.API.ContextualConversion.ctx, 'a) Elpi.API.ContextualConversion.context
-val in_ctx_for_term : (Term.ctx_for_why_simple_term, Elpi.API.Data.constraints) Elpi.API.ContextualConversion.ctx_readback
+val context_made_of_ctx_for_term : (ctx_for_term, Why3.Term.vsymbol, 'a) Elpi_api_compat.context
+val in_ctx_for_term : (Term.ctx_for_why_simple_term, Elpi.API.Data.constraints) Elpi_api_compat.ctx_readback
 val pp_ctx_for_term : Format.formatter -> ctx_for_term -> unit
 
-val in_ctx_for_ty : (Ty.ctx_for_why_simple_ty, Elpi.API.Data.constraints) Elpi.API.ContextualConversion.ctx_readback
+val in_ctx_for_ty : (Ty.ctx_for_why_simple_ty, Elpi.API.Data.constraints) Elpi_api_compat.ctx_readback
 
 (* Embeddings of terms, types and tasks *)
-val term : (Why3.Term.term, #Ctx_for_why_simple_term.t, 'b) Elpi.API.ContextualConversion.t
+val term : (Why3.Term.term, 'a, 'b) Elpi.API.ContextualConversion.t
 val lsymbol : (Why3.Term.lsymbol, 'a, 'b) Elpi.API.ContextualConversion.t
 val ty   : (Why3.Ty.ty, 'a, 'b) Elpi.API.ContextualConversion.t
 val env  : (Why3.Env.env, 'a, 'b) Elpi.API.ContextualConversion.t
-val task : (Why3.Task.task, #Ctx_for_why_simple_term.t, 'b) Elpi.API.ContextualConversion.t
-val decl : (Why3.Decl.decl, #Ctx_for_why_simple_term.t, 'b) Elpi.API.ContextualConversion.t
+val task : (Why3.Task.task, 'a, 'b) Elpi.API.ContextualConversion.t
+val decl : (Why3.Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.t
 
 (* Other embeddings: constants (ty/l symbols) and variables for types and terms *)
 val vsymbol : (Why3.Term.vsymbol, 'a, 'b) Elpi.API.ContextualConversion.t

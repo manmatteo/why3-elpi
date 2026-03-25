@@ -26,20 +26,16 @@
         };
         query = devPackagesQuery // {
           ocaml-base-compiler = "*";
-          # The pinned elpi branch requires atdgen but doesn't declare it in its opam file
           atdgen = "*";
           "atdgen-runtime" = "*";
         };
-        scope = on.buildOpamProject' { pinDepends = true; } ./. query;
+        scope = on.buildOpamProject' { pinDepends = false; } ./. query;
         overlay = final: prev: {
           # You can add overrides here
           ${package} = prev.${package}.overrideAttrs (_: {
             # Prevent the ocaml dependencies from leaking into dependent environments
             doNixSupport = false;
           });
-          # The pinned elpi branch uses atdgen in its dune file but omits it from
-          # its opam depends; also, at atdgen 2.x the OCaml library is in
-          # atdgen-runtime. Patch src/dune and add atdgen-runtime.
           elpi = prev.elpi.overrideAttrs (old: {
             buildInputs = (old.buildInputs or []) ++ [ prev."atdgen-runtime" ];
             prePatch = (old.prePatch or "") + ''

@@ -29,11 +29,11 @@ include
     let _ = elpi_opaque_data_decl_prsymbol
     module Ctx_for_prsymbol =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let prsymbol :
       'c .
-        (prsymbol, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (prsymbol, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -52,10 +52,9 @@ include
     let _ = elpi_prsymbol
     class ctx_for_prsymbol (h : Elpi.API.Data.hyps)
       (s : Elpi.API.Data.state) : Ctx_for_prsymbol.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
     let (in_ctx_for_prsymbol :
-      (Ctx_for_prsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback)
-      =
+      (Ctx_for_prsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth ->
         fun h ->
           fun c ->
@@ -118,11 +117,11 @@ include
     let _ = elpi_opaque_data_decl_data_decl
     module Ctx_for_data_decl =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let data_decl :
       'c .
-        (data_decl, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (data_decl, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -141,10 +140,9 @@ include
     let _ = elpi_data_decl
     class ctx_for_data_decl (h : Elpi.API.Data.hyps)
       (s : Elpi.API.Data.state) : Ctx_for_data_decl.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
     let (in_ctx_for_data_decl :
-      (Ctx_for_data_decl.t, 'csts) Elpi.API.ContextualConversion.ctx_readback)
-      =
+      (Ctx_for_data_decl.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth ->
         fun h ->
           fun c ->
@@ -173,13 +171,13 @@ let embed_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = f
   | Decl.Dtype ty -> let st, tsymb, eg = tysymbol.embed ~depth h c st ty in
     st, mkApp tydeclc tsymb [], eg
   | Decl.Ddata ddecls -> (* Algebraic data *)
-    let st, ddecls, eg = (Elpi.API.BuiltInContextualData.list data_decl).embed ~depth h c st ddecls
+    let st, ddecls, eg = (Elpi_api_compat.BuiltInContextualData.list data_decl).embed ~depth h c st ddecls
     in st, mkApp datac ddecls [], eg
   | Decl.Dparam p ->
     let st, lsymb, eg = lsymbol.embed ~depth h c st p
     in st, mkApp paramc lsymb [], eg
   | Decl.Dlogic ll -> (* Logic declarations *)
-    let st, ll, eg = (Elpi.API.BuiltInContextualData.list logic_decl).embed ~depth h c st ll
+    let st, ll, eg = (Elpi_api_compat.BuiltInContextualData.list logic_decl).embed ~depth h c st ll
     in st, mkApp decllc ll [], eg
   | Decl.Dprop (k,s,t) -> (*let st, prdecl, eg = prop_decl.embed ~depth h c st (k,s,t) in st, *)
     let st, prsym, eg1 = prsymbol.embed ~depth h c st s in
@@ -216,10 +214,10 @@ let readback_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.readback =
     let st, ts, eg = tysymbol.readback ~depth h c st tysymt in
     st, Decl.create_ty_decl ts, eg
   | App (c, dlist, []) when c = datac -> (* Algebraic data *)
-    let st, dlist, eg = (Elpi.API.BuiltInContextualData.list data_decl).readback ~depth h c st dlist in
+    let st, dlist, eg = (Elpi_api_compat.BuiltInContextualData.list data_decl).readback ~depth h c st dlist in
     st, Decl.create_data_decl dlist, eg
   | App (c, llist, []) when c = decllc -> (* Defined predicate *)
-    let st, dlist, eg = (Elpi.API.BuiltInContextualData.list logic_decl).readback ~depth h c st llist in
+    let st, dlist, eg = (Elpi_api_compat.BuiltInContextualData.list logic_decl).readback ~depth h c st llist in
     st, Decl.create_logic_decl dlist, eg
   | App (_, _, _) -> unsupported "app"
   | Cons (_, _) -> unsupported "cons"

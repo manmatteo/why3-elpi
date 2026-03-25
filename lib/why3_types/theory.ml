@@ -39,11 +39,11 @@ include
     let _ = elpi_opaque_data_decl_theory
     module Ctx_for_theory =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let theory :
       'c .
-        (theory, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (theory, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -61,9 +61,9 @@ include
     let _ = elpi_theory
     class ctx_for_theory (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
       : Ctx_for_theory.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
     let (in_ctx_for_theory :
-      (Ctx_for_theory.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      (Ctx_for_theory.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth ->
         fun h ->
           fun c ->
@@ -98,11 +98,11 @@ include
     let _ = elpi_opaque_data_decl_meta_arg
     module Ctx_for_meta_arg =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let meta_arg :
       'c .
-        (meta_arg, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (meta_arg, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -121,9 +121,9 @@ include
     let _ = elpi_meta_arg
     class ctx_for_meta_arg (h : Elpi.API.Data.hyps)
       (s : Elpi.API.Data.state) : Ctx_for_meta_arg.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
     let (in_ctx_for_meta_arg :
-      (Ctx_for_meta_arg.t, 'csts) Elpi.API.ContextualConversion.ctx_readback)
+      (Ctx_for_meta_arg.t, 'csts) Elpi_api_compat.ctx_readback)
       =
       fun ~depth ->
         fun h ->
@@ -158,11 +158,11 @@ include
     let _ = elpi_opaque_data_decl_meta
     module Ctx_for_meta =
       struct
-        class type t = object inherit Elpi.API.ContextualConversion.ctx end
+        class type t = object inherit Elpi_api_compat.ctx end
       end
     let meta :
       'c .
-        (meta, #Elpi.API.ContextualConversion.ctx as 'c, 'csts)
+        (meta, 'c, 'csts)
           Elpi.API.ContextualConversion.t
       =
       let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
@@ -180,9 +180,9 @@ include
     let _ = elpi_meta
     class ctx_for_meta (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
       : Ctx_for_meta.t =
-      object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
+      object (_) inherit  ((Elpi_api_compat.ctx) h) end
     let (in_ctx_for_meta :
-      (Ctx_for_meta.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+      (Ctx_for_meta.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth ->
         fun h ->
           fun c ->
@@ -252,19 +252,19 @@ let elpi_constant_constructor_tdecl_node_Clone = "clone"
 let elpi_constant_constructor_tdecl_node_Clonec = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_tdecl_node_Clone
 module Ctx_for_tdecl_node =
   struct
-    class type t = object inherit Elpi.API.ContextualConversion.ctx end
+    class type t = object inherit Elpi_api_compat.ctx end
   end
 let rec elpi_embed_tdecl =
   fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state td ->
     match td.td_node with
     | Decl elpi__9 ->
          let (elpi__state, elpi__11, elpi__10) = decl.Elpi.API.ContextualConversion.embed ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__9 in
-         (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_tdecl_node_Declc [elpi__11]), (List.concat [elpi__10]))
+         (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_tdecl_node_Declc [elpi__11]), (List.concat [elpi__10]))
      | Use elpi__12 ->
          let (elpi__state, elpi__14, elpi__13) = theory.Elpi.API.ContextualConversion.embed ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__12 in
-         (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_tdecl_node_Usec [elpi__14]), (List.concat [elpi__13]))
+         (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_tdecl_node_Usec [elpi__14]), (List.concat [elpi__13]))
      | Clone _ -> let (st, td, eg) = opaque_tdecl.embed ~depth:elpi__depth elpi__state td in
-                  (st, (Elpi.API.RawData.mkAppL elpi_constant_constructor_tdecl_node_Clonec [td]), eg)
+                  (st, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_tdecl_node_Clonec [td]), eg)
      | Meta (elpi__15, elpi__16) ->
          let (elpi__state, elpi__19, elpi__17) = meta.Elpi.API.ContextualConversion.embed ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__15 in
          let (elpi__state, elpi__20, elpi__18) = (fun ~depth h c s t ->
@@ -273,7 +273,7 @@ let rec elpi_embed_tdecl =
                                  let (s, l, eg) = Elpi.API.Utils.map_acc (embed ~depth h c) s l in
                                  (s, (Elpi.API.Utils.list_to_lp_list l), eg)) ~depth h c s t)
              ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__16 in
-         (elpi__state, (Elpi.API.RawData.mkAppL elpi_constant_constructor_tdecl_node_Metac [elpi__19; elpi__20]), (List.concat [elpi__17; elpi__18]))
+         (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_tdecl_node_Metac [elpi__19; elpi__20]), (List.concat [elpi__17; elpi__18]))
 and elpi_readback_tdecl =
   fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__x ->
   match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
@@ -303,10 +303,10 @@ and tdecl =
   let kind = Elpi.API.ContextualConversion.TyName "tdecl" in
   { Elpi.API.ContextualConversion.ty = kind;
     pp_doc = (fun fmt () ->
-           Elpi.API.PPX.Doc.kind fmt kind ~doc:"tdecl";
-           Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"decl" ~doc:"Decl" ~args:[decl.Elpi.API.ContextualConversion.ty];
-           Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"use" ~doc:"Use" ~args:[theory.Elpi.API.ContextualConversion.ty];
-           Elpi.API.PPX.Doc.constructor fmt ~ty:kind ~name:"meta" ~doc:"Meta" ~args:[meta.Elpi.API.ContextualConversion.ty; Elpi.API.ContextualConversion.TyApp ("list", (meta_arg.Elpi.API.ContextualConversion.ty), [])]);
+           Elpi_api_compat.Doc.kind fmt kind ~doc:"tdecl";
+           Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"decl" ~doc:"Decl" ~args:[decl.Elpi.API.ContextualConversion.ty];
+           Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"use" ~doc:"Use" ~args:[theory.Elpi.API.ContextualConversion.ty];
+           Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"meta" ~doc:"Meta" ~args:[meta.Elpi.API.ContextualConversion.ty; Elpi.API.ContextualConversion.TyApp ("list", (meta_arg.Elpi.API.ContextualConversion.ty), [])]);
     pp = (fun fmt t ->
            match t.td_node with
            | Decl d -> Format.fprintf fmt "%a" Pretty.print_decl d

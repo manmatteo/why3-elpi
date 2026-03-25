@@ -15,9 +15,9 @@ let elpi_opaque_data_decl_tysymbol = Elpi.API.OpaqueData.declare {
 }
 module Ctx_for_tysymbol =
   struct
-    class type t = object inherit Elpi.API.ContextualConversion.ctx end
+    class type t = object inherit Elpi_api_compat.ctx end
   end
-let tysymbol : 'c .  (tysymbol, #Elpi.API.ContextualConversion.ctx as 'c, 'csts) Elpi.API.ContextualConversion.t =
+let tysymbol : 'c .  (tysymbol, 'c, 'csts) Elpi.API.ContextualConversion.t =
   let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
     elpi_opaque_data_decl_tysymbol in
   let embed ~depth  _ _ s t = embed ~depth s t in
@@ -27,8 +27,8 @@ let elpi_embed_tysymbol = tysymbol.Elpi.API.ContextualConversion.embed
 let elpi_readback_tysymbol = tysymbol.Elpi.API.ContextualConversion.readback
 let elpi_tysymbol = Elpi.API.BuiltIn.MLDataC tysymbol
 class ctx_for_tysymbol (h : Elpi.API.Data.hyps)  (_s : Elpi.API.Data.state) : Ctx_for_tysymbol.t =
-  object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-let (in_ctx_for_tysymbol : (Ctx_for_tysymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+  object (_) inherit  ((Elpi_api_compat.ctx) h) end
+let (in_ctx_for_tysymbol : (Ctx_for_tysymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth:_ h c s -> (s, ((new ctx_for_tysymbol) h s), c, (List.concat []))
 let () = declaration := !declaration @ [elpi_tysymbol]
 (* let ciao (t : tysymbol) =
@@ -44,9 +44,9 @@ let elpi_opaque_data_decl_tvsymbol = Elpi.API.OpaqueData.declare {
 }
 module Ctx_for_tvsymbol =
   struct
-    class type t = object inherit Elpi.API.ContextualConversion.ctx end
+    class type t = object inherit Elpi_api_compat.ctx end
   end
-let tvsymbol : 'c .  (tvsymbol, #Elpi.API.ContextualConversion.ctx as 'c, 'csts) Elpi.API.ContextualConversion.t =
+let tvsymbol : 'c .  (tvsymbol, 'c, 'csts) Elpi.API.ContextualConversion.t =
   let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
     elpi_opaque_data_decl_tvsymbol in
   let embed ~depth  _ _ s t = embed ~depth s t in
@@ -56,8 +56,8 @@ let elpi_embed_tvsymbol = tvsymbol.Elpi.API.ContextualConversion.embed
 let elpi_readback_tvsymbol = tvsymbol.Elpi.API.ContextualConversion.readback
 let elpi_tvsymbol = Elpi.API.BuiltIn.MLDataC tvsymbol
 class ctx_for_tvsymbol (h : Elpi.API.Data.hyps)  (_s : Elpi.API.Data.state) : Ctx_for_tvsymbol.t =
-  object (_) inherit  ((Elpi.API.ContextualConversion.ctx) h) end
-let (in_ctx_for_tvsymbol : (Ctx_for_tvsymbol.t, 'csts) Elpi.API.ContextualConversion.ctx_readback) =
+  object (_) inherit  ((Elpi_api_compat.ctx) h) end
+let (in_ctx_for_tvsymbol : (Ctx_for_tvsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
       fun ~depth:_ h c s -> (s, ((new ctx_for_tvsymbol) h s), c, (List.concat []))
 let () = declaration := !declaration @ [elpi_tvsymbol]
 
@@ -74,7 +74,7 @@ let rec ty_to_why_simple_ty (t : Ty.ty) : why_simple_ty =
 let rec why_simple_ty_to_ty (t : why_simple_ty) : Ty.ty =
   match t with | Tyvar v -> Ty.ty_var v | Tyapp (t, a) -> Ty.ty_app t (List.map why_simple_ty_to_ty a)
 
-let ty : 'c 'csts .  (ty, #Ctx_for_why_simple_ty.t as 'c, 'csts) Elpi.API.ContextualConversion.t =
+let ty : 'c 'csts .  (ty, 'c, 'csts) Elpi.API.ContextualConversion.t =
 let open Elpi.API.ContextualConversion in
   let kind = TyName "ty" in
   {ty = kind;
