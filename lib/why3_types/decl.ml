@@ -64,18 +64,30 @@ type data_decl = Why3.Decl.data_decl
 }]
 [@@deriving elpi {declaration}]
 
+type ind_list = Why3.Decl.ind_list
+[@@elpi.opaque {
+  name = "ind_list";
+  pp =
+    (pp_why_data
+       (fun fmt _ -> Format.fprintf fmt "<ind_list>"));
+  doc = "";
+  compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}]
+[@@deriving elpi {declaration}]
+
 let plemmac = Elpi.API.RawData.Constants.declare_global_symbol "lemma"
 let paxiomc = Elpi.API.RawData.Constants.declare_global_symbol "axiom"
 let pgoalc = Elpi.API.RawData.Constants.declare_global_symbol "goal"
 let paramc = Elpi.API.RawData.Constants.declare_global_symbol "const"
 let tydeclc = Elpi.API.RawData.Constants.declare_global_symbol "typ"
 let datac = Elpi.API.RawData.Constants.declare_global_symbol "data"
+let dindc = Elpi.API.RawData.Constants.declare_global_symbol "dind"
 let decllc = Elpi.API.RawData.Constants.declare_global_symbol "declls"
 
 let embed_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = fun ~depth h c st decl ->
-  let unsupported msg =
-    Loc.errorm "Embed not supported for decl :(%s, %a)@." msg Pretty.print_decl decl
-  in
   let open Elpi.API.RawData in
   match decl.d_node with
   | Decl.Dtype ty ->
@@ -85,6 +97,9 @@ let embed_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = f
       let st, ddecls, eg =
         (Elpi_api_compat.BuiltInContextualData.list data_decl).embed ~depth h c st ddecls in
       st, mkApp datac ddecls [], eg
+  | Decl.Dind idecls ->
+      let st, idecls, eg = ind_list.embed ~depth h c st idecls in
+      st, mkApp dindc idecls [], eg
   | Decl.Dparam p ->
       let st, lsymb, eg = lsymbol.embed ~depth h c st p in
       st, mkApp paramc lsymb [], eg
@@ -101,7 +116,6 @@ let embed_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = f
         | Decl.Pgoal -> pgoalc
       in
       st, mkApp konst prsym [tt], eg1 @ eg2
-  | Decl.Dind _ -> unsupported "dind"
 
 let readback_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.readback = fun ~depth h c st decl ->
   let unsupported msg =
@@ -129,6 +143,9 @@ let readback_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.readback =
       let st, dlist, eg =
         (Elpi_api_compat.BuiltInContextualData.list data_decl).readback ~depth h c st dlist in
       st, Decl.create_data_decl dlist, eg
+  | App (c, ilist, []) when c = dindc ->
+      let st, (s, ilist), eg = ind_list.readback ~depth h c st ilist in
+      st, Decl.create_ind_decl s ilist, eg
   | App (c, llist, []) when c = decllc ->
       let st, dlist, eg =
         (Elpi_api_compat.BuiltInContextualData.list logic_decl).readback ~depth h c st llist in
@@ -151,6 +168,7 @@ type lemma  prsymbol -> term -> decl.
 type axiom  prsymbol -> term -> decl.
 type typ    tysymbol -> decl. %% Abstract type
 type data   list data_decl   -> decl. %% Data (defined) type
+type dind   ind_list         -> decl. %% Inductive declaration
 type declls list logic_decl  -> decl. %% Defined logic symbol
 type const  lsymbol  -> decl.|});
   readback = readback_decl;
