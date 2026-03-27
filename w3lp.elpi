@@ -15,25 +15,9 @@ kind tvsymbol type.
 kind ty type.
 type tyvar tvsymbol -> ty.
 % Tyvar
-type tyapp tysymbol -> list ty -> ty.
+type tyapp tysymbol -> (list ty) -> ty.
 % Tyapp
 
-% Names for declarations
-kind prsymbol type.
-
-
-type logic  lsymbol  -> term -> logic_decl.
-kind data_decl type.
-
-
-kind decl type.
-type goal   prsymbol -> term -> decl.
-type lemma  prsymbol -> term -> decl.
-type axiom  prsymbol -> term -> decl.
-type typ    tysymbol -> decl. % Abstract type
-type data   list data_decl   -> decl. % Data (defined) type
-type declls list logic_decl  -> decl. % Defined logic symbol
-type const  lsymbol  -> decl.
 % Embedding of variable symbols
 kind var type.
 
@@ -68,11 +52,11 @@ type ctx_vs term -> var -> prop. % Dctx_vs
 
 % Pattern constructors for pattern-matching terms.
 kind pattern type.
-type pwild pattern.
+type pwild ty -> pattern.
 % Pwild
 type pvar var -> pattern.
 % Pvar
-type papp lsymbol -> list pattern -> pattern.
+type papp lsymbol -> (list pattern) -> ty -> pattern.
 % Papp
 type por pattern -> pattern -> pattern.
 % Por
@@ -83,11 +67,11 @@ type pas pattern -> var -> pattern.
 kind term type.
 type tint int -> term.
 % Tint
-type tapp lsymbol -> list term -> term.
+type tapp lsymbol -> (list term) -> term.
 % Tapp
-type tquant quant -> var -> -> term term -> term.
+type tquant quant -> var -> (term -> term) -> term.
 % Tquant
-type teps var -> -> term term -> term.
+type teps var -> (term -> term) -> term.
 % Teps
 type ttrue term.
 % Ttrue
@@ -99,11 +83,30 @@ type tif term -> term -> term -> term.
 % Tif
 type tnot term -> term.
 % Tnot
-type tcase term -> ty -> list (pair pattern term) -> term.
+type tcase term -> ty -> (list (pair pattern term)) -> term.
 % Tcase
-type pabs var -> -> term term -> term.
+type pabs var -> (term -> term) -> term.
 % Pabs
 
+% Names for declarations
+kind prsymbol type.
+
+
+kind logic_decl type.
+type logic  lsymbol  -> term -> logic_decl.
+
+kind data_decl type.
+
+
+kind logic_decl type.
+kind decl type.
+type goal   prsymbol -> term -> decl.
+type lemma  prsymbol -> term -> decl.
+type axiom  prsymbol -> term -> decl.
+type typ    tysymbol -> decl. % Abstract type
+type data   list data_decl   -> decl. % Data (defined) type
+type declls list logic_decl  -> decl. % Defined logic symbol
+type const  lsymbol  -> decl.
 % Symbol for theory (currently cannot be inspected)
 kind theory type.
 
@@ -122,7 +125,7 @@ type decl decl -> tdecl.
 % Decl
 type use theory -> tdecl.
 % Use
-type meta meta -> list meta-arg -> tdecl.
+type meta meta -> (list meta-arg) -> tdecl.
 % Meta
 
 % The current environment can be retrieved, for example during a
@@ -139,6 +142,8 @@ external func why3.ls-type lsymbol -> ty.
 
 % [why3.pp-term T S] Convert a term to string using Why3's pretty printer
 external func why3.pp-term term -> string.
+
+external symbol w3_transform : string -> list tdecl -> list (list tdecl) -> prop = "1".
 
 
 

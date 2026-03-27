@@ -4,36 +4,20 @@ open Why3
 open Why3.Ty
 
 let declaration = ref []
-let elpi_opaque_data_decl_tysymbol = Elpi.API.OpaqueData.declare {
+type tysymbol = Why3.Ty.tysymbol
+[@@elpi.opaque {
   name = "tysymbol";
   doc = "Embedding of type symbols. Internal information (Ident, arguments) is not exposed.";
   pp = pp_why_data Pretty.print_ts;
   compare = Ty.ts_compare;
   hash = Hashtbl.hash;
   hconsed = false;
-  constants = [("arr", Ty.ts_func)] (* [("«ts_int»", Ty.ts_int ); ("«ts_real»", Ty.ts_real ); ("«ts_bool»", Ty.ts_bool ); ("«ts_str»", Ty.ts_str )] *);
-}
-module Ctx_for_tysymbol =
-  struct
-    class type t = object inherit Elpi_api_compat.ctx end
-  end
-let tysymbol : 'c .  (tysymbol, 'c, 'csts) Elpi.API.ContextualConversion.t =
-  let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-    elpi_opaque_data_decl_tysymbol in
-  let embed ~depth  _ _ s t = embed ~depth s t in
-  let readback ~depth  _ _ s t = readback ~depth s t in
-  { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp }
-let elpi_embed_tysymbol = tysymbol.Elpi.API.ContextualConversion.embed
-let elpi_readback_tysymbol = tysymbol.Elpi.API.ContextualConversion.readback
-let elpi_tysymbol = Elpi.API.BuiltIn.MLDataC tysymbol
-class ctx_for_tysymbol (h : Elpi.API.Data.hyps)  (_s : Elpi.API.Data.state) : Ctx_for_tysymbol.t =
-  object (_) inherit  ((Elpi_api_compat.ctx) h) end
-let (in_ctx_for_tysymbol : (Ctx_for_tysymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth:_ h c s -> (s, ((new ctx_for_tysymbol) h s), c, (List.concat []))
-let () = declaration := !declaration @ [elpi_tysymbol]
-(* let ciao (t : tysymbol) =
-  match t with | { ts_name; ts_args; ts_def } -> (match ts_def with | NoDef -> _ | Alias _ -> _ | Range _ -> _ | Float _ -> _) *)
-let elpi_opaque_data_decl_tvsymbol = Elpi.API.OpaqueData.declare {
+  constants = [("arr", Ty.ts_func)];
+}]
+[@@deriving elpi {declaration}]
+
+type tvsymbol = Why3.Ty.tvsymbol
+[@@elpi.opaque {
   name = "tvsymbol";
   doc = "Embedding of type variables. Internal information (Ident, arguments) is not exposed.";
   pp = pp_why_data Pretty.print_tv;
@@ -41,25 +25,8 @@ let elpi_opaque_data_decl_tvsymbol = Elpi.API.OpaqueData.declare {
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
-}
-module Ctx_for_tvsymbol =
-  struct
-    class type t = object inherit Elpi_api_compat.ctx end
-  end
-let tvsymbol : 'c .  (tvsymbol, 'c, 'csts) Elpi.API.ContextualConversion.t =
-  let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-    elpi_opaque_data_decl_tvsymbol in
-  let embed ~depth  _ _ s t = embed ~depth s t in
-  let readback ~depth  _ _ s t = readback ~depth s t in
-  { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp }
-let elpi_embed_tvsymbol = tvsymbol.Elpi.API.ContextualConversion.embed
-let elpi_readback_tvsymbol = tvsymbol.Elpi.API.ContextualConversion.readback
-let elpi_tvsymbol = Elpi.API.BuiltIn.MLDataC tvsymbol
-class ctx_for_tvsymbol (h : Elpi.API.Data.hyps)  (_s : Elpi.API.Data.state) : Ctx_for_tvsymbol.t =
-  object (_) inherit  ((Elpi_api_compat.ctx) h) end
-let (in_ctx_for_tvsymbol : (Ctx_for_tvsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth:_ h c s -> (s, ((new ctx_for_tvsymbol) h s), c, (List.concat []))
-let () = declaration := !declaration @ [elpi_tvsymbol]
+}]
+[@@deriving elpi {declaration}]
 
 type why_simple_ty =
 | Tyvar of tvsymbol

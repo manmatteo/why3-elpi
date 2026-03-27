@@ -1,4 +1,5 @@
 open Decl
+module Decl_conv = Decl
 open Why3
 open Elpi
 open Why3.Theory
@@ -11,185 +12,47 @@ open Why3.Theory
   hconsed = false;
   constants = [];
 } *)
-let declaration = ref []
-include
-  struct
-    [@@@ocaml.warning "-60"]
-    let _ = fun (_ : theory) -> ()
-    [@@@warning "-26-27-32-39-60"]
-    let elpi_constant_type_theory = "theory"
-    let _ = elpi_constant_type_theory
-    let elpi_constant_type_theoryc =
-      Elpi.API.RawData.Constants.declare_global_symbol
-        elpi_constant_type_theory
-    let _ = elpi_constant_type_theoryc
-    let elpi_opaque_data_decl_theory =
-      Elpi.API.OpaqueData.declare
-        {
-          name = "theory";
-          doc = "Symbol for theory (currently cannot be inspected)";
-          pp =
-            (fun fmt ->
-               fun t -> Format.fprintf fmt "%s" (t.Theory.th_name).id_string);
-          compare = (fun x -> fun y -> Stdlib.compare x.th_name y.th_name);
-          hash = (fun x -> Hashtbl.hash x.th_name);
-          hconsed = false;
-          constants = []
-        }
-    let _ = elpi_opaque_data_decl_theory
-    module Ctx_for_theory =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let theory :
-      'c .
-        (theory, 'c, 'csts)
-          Elpi.API.ContextualConversion.t
-      =
-      let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-        elpi_opaque_data_decl_theory in
-      let embed ~depth  _ _ s t = embed ~depth s t in
-      let readback ~depth  _ _ s t = readback ~depth s t in
-      { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
-      }
-    let _ = theory
-    let elpi_embed_theory = theory.Elpi.API.ContextualConversion.embed
-    let _ = elpi_embed_theory
-    let elpi_readback_theory = theory.Elpi.API.ContextualConversion.readback
-    let _ = elpi_readback_theory
-    let elpi_theory = Elpi.API.BuiltIn.MLDataC theory
-    let _ = elpi_theory
-    class ctx_for_theory (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
-      : Ctx_for_theory.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_theory :
-      (Ctx_for_theory.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth ->
-        fun h ->
-          fun c ->
-            fun s -> (s, ((new ctx_for_theory) h s), c, (List.concat []))
-    let _ = in_ctx_for_theory
-    let () = declaration := !declaration @ [elpi_theory]
-  end[@@ocaml.doc "@inline"][@@merlin.hide ]
-include
-  struct
-    [@@@ocaml.warning "-60"]
-    let _ = fun (_ : meta_arg) -> ()
-    [@@@warning "-26-27-32-39-60"]
-    let elpi_constant_type_meta_arg = "meta-arg"
-    let _ = elpi_constant_type_meta_arg
-    let elpi_constant_type_meta_argc =
-      Elpi.API.RawData.Constants.declare_global_symbol
-        elpi_constant_type_meta_arg
-    let _ = elpi_constant_type_meta_argc
-    let elpi_opaque_data_decl_meta_arg =
-      Elpi.API.OpaqueData.declare
-        {
-          Elpi.API.OpaqueData.name = "meta-arg";
-          doc = "Symbol for meta args (currently cannot be inspected)";
-          pp =
-            (fun fmt ->
-               fun m -> Format.fprintf fmt "%a" Pretty.print_meta_arg m);
-          compare = Stdlib.compare;
-          hash = Hashtbl.hash;
-          hconsed = false;
-          constants = []
-        }
-    let _ = elpi_opaque_data_decl_meta_arg
-    module Ctx_for_meta_arg =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let meta_arg :
-      'c .
-        (meta_arg, 'c, 'csts)
-          Elpi.API.ContextualConversion.t
-      =
-      let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-        elpi_opaque_data_decl_meta_arg in
-      let embed ~depth  _ _ s t = embed ~depth s t in
-      let readback ~depth  _ _ s t = readback ~depth s t in
-      { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
-      }
-    let _ = meta_arg
-    let elpi_embed_meta_arg = meta_arg.Elpi.API.ContextualConversion.embed
-    let _ = elpi_embed_meta_arg
-    let elpi_readback_meta_arg =
-      meta_arg.Elpi.API.ContextualConversion.readback
-    let _ = elpi_readback_meta_arg
-    let elpi_meta_arg = Elpi.API.BuiltIn.MLDataC meta_arg
-    let _ = elpi_meta_arg
-    class ctx_for_meta_arg (h : Elpi.API.Data.hyps)
-      (s : Elpi.API.Data.state) : Ctx_for_meta_arg.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_meta_arg :
-      (Ctx_for_meta_arg.t, 'csts) Elpi_api_compat.ctx_readback)
-      =
-      fun ~depth ->
-        fun h ->
-          fun c ->
-            fun s -> (s, ((new ctx_for_meta_arg) h s), c, (List.concat []))
-    let _ = in_ctx_for_meta_arg
-    let () = declaration := !declaration @ [elpi_meta_arg]
-  end[@@ocaml.doc "@inline"][@@merlin.hide ]
-include
-  struct
-    [@@@ocaml.warning "-60"]
-    let _ = fun (_ : meta) -> ()
-    [@@@warning "-26-27-32-39-60"]
-    let elpi_constant_type_meta = "meta"
-    let _ = elpi_constant_type_meta
-    let elpi_constant_type_metac =
-      Elpi.API.RawData.Constants.declare_global_symbol
-        elpi_constant_type_meta
-    let _ = elpi_constant_type_metac
-    let elpi_opaque_data_decl_meta =
-      Elpi.API.OpaqueData.declare
-        {
-          name = "meta";
-          doc = "Symbol for meta (currently cannot be inspected)";
-          pp =
-            (fun fmt -> fun m -> Format.fprintf fmt "%s" m.Theory.meta_name);
-          compare = (fun x -> fun y -> Stdlib.compare x.meta_tag y.meta_tag);
-          hash = (fun x -> Hashtbl.hash x.meta_tag);
-          hconsed = false;
-          constants = []
-        }
-    let _ = elpi_opaque_data_decl_meta
-    module Ctx_for_meta =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let meta :
-      'c .
-        (meta, 'c, 'csts)
-          Elpi.API.ContextualConversion.t
-      =
-      let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-        elpi_opaque_data_decl_meta in
-      let embed ~depth  _ _ s t = embed ~depth s t in
-      let readback ~depth  _ _ s t = readback ~depth s t in
-      { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
-      }
-    let _ = meta
-    let elpi_embed_meta = meta.Elpi.API.ContextualConversion.embed
-    let _ = elpi_embed_meta
-    let elpi_readback_meta = meta.Elpi.API.ContextualConversion.readback
-    let _ = elpi_readback_meta
-    let elpi_meta = Elpi.API.BuiltIn.MLDataC meta
-    let _ = elpi_meta
-    class ctx_for_meta (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state)
-      : Ctx_for_meta.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_meta :
-      (Ctx_for_meta.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth ->
-        fun h ->
-          fun c ->
-            fun s -> (s, ((new ctx_for_meta) h s), c, (List.concat []))
-    let _ = in_ctx_for_meta
-    let () = declaration := !declaration @ [elpi_meta]
-  end[@@ocaml.doc "@inline"][@@merlin.hide ]
+let declaration = Decl_conv.decl_declaration
+type theory = Why3.Theory.theory
+[@@elpi.opaque {
+  name = "theory";
+  doc = "Symbol for theory (currently cannot be inspected)";
+  pp =
+    (fun fmt ->
+       fun t -> Format.fprintf fmt "%s" (t.Theory.th_name).id_string);
+  compare = (fun x -> fun y -> Stdlib.compare x.th_name y.th_name);
+  hash = (fun x -> Hashtbl.hash x.th_name);
+  hconsed = false;
+  constants = [];
+}]
+[@@deriving elpi {declaration}]
+
+type meta_arg = Why3.Theory.meta_arg
+[@@elpi.opaque {
+  Elpi.API.OpaqueData.name = "meta-arg";
+  doc = "Symbol for meta args (currently cannot be inspected)";
+  pp =
+    (fun fmt ->
+       fun m -> Format.fprintf fmt "%a" Pretty.print_meta_arg m);
+  compare = Stdlib.compare;
+  hash = Hashtbl.hash;
+  hconsed = false;
+  constants = [];
+}]
+[@@deriving elpi {declaration}]
+
+type meta = Why3.Theory.meta
+[@@elpi.opaque {
+  name = "meta";
+  doc = "Symbol for meta (currently cannot be inspected)";
+  pp =
+    (fun fmt -> fun m -> Format.fprintf fmt "%s" m.Theory.meta_name);
+  compare = (fun x -> fun y -> Stdlib.compare x.meta_tag y.meta_tag);
+  hash = (fun x -> Hashtbl.hash x.meta_tag);
+  hconsed = false;
+  constants = [];
+}]
+[@@deriving elpi {declaration}]
 (* Hide clones *)
 (* TODO: Make this a ContextualConversion *)
 (* actually, TODO is make clones work *)
