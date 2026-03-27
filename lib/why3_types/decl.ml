@@ -56,7 +56,7 @@ type data_decl = Why3.Decl.data_decl
     (pp_why_data
        (fun fmt ->
           fun (x, _) -> Format.fprintf fmt "%a" Pretty.print_ts x));
-  doc = "";
+  doc = "Opaque payload for Why3 algebraic data-type declarations.";
   compare;
   hash = Hashtbl.hash;
   hconsed = false;
@@ -70,7 +70,7 @@ type ind_list = Why3.Decl.ind_list
   pp =
     (pp_why_data
        (fun fmt _ -> Format.fprintf fmt "<ind_list>"));
-  doc = "";
+  doc = "Opaque payload for Why3 inductive declarations (predicate families and rules).";
   compare;
   hash = Hashtbl.hash;
   hconsed = false;
@@ -161,8 +161,7 @@ let decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.t = {
   ty = TyName "decl";
   pp = Pretty.print_decl;
   pp_doc = (fun fmt () -> Format.fprintf fmt
-{|kind logic_decl type.
-kind decl type.
+{|kind decl type.
 type goal   prsymbol -> term -> decl.
 type lemma  prsymbol -> term -> decl.
 type axiom  prsymbol -> term -> decl.

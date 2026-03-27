@@ -22,7 +22,7 @@ type tyapp tysymbol -> (list ty) -> ty.
 kind var type.
 
 
-% Embedding of predicate symbols. Name, argument and value type can be
+% Embedding of logic symbols. Name, argument and value type can be
 % accessed via native predicates.
 kind lsymbol type.
 
@@ -63,13 +63,17 @@ type por pattern -> pattern -> pattern.
 type pas pattern -> var -> pattern.
 % Pas
 
-% why_simple_term
+% Why3 terms with explicit binders, optional type annotations on applications, triggers, and attributes.
 kind term type.
+type tattr (list string) -> term -> term.
+% Tattr
 type tint int -> term.
 % Tint
-type tapp lsymbol -> (list term) -> term.
+type tapp lsymbol -> (list term) -> (option ty) -> term.
 % Tapp
-type tquant quant -> var -> (term -> term) -> term.
+type tlet term -> var -> (term -> term) -> term.
+% Tlet
+type tquant quant -> var -> (option (list (list term))) -> (term -> term) -> term.
 % Tquant
 type teps var -> (term -> term) -> term.
 % Teps
@@ -95,16 +99,22 @@ kind prsymbol type.
 kind logic_decl type.
 type logic  lsymbol  -> term -> logic_decl.
 
+% Opaque payload for Why3 algebraic data-type declarations.
 kind data_decl type.
 
 
-kind logic_decl type.
+% Opaque payload for Why3 inductive declarations (predicate families and
+% rules).
+kind ind_list type.
+
+
 kind decl type.
 type goal   prsymbol -> term -> decl.
 type lemma  prsymbol -> term -> decl.
 type axiom  prsymbol -> term -> decl.
 type typ    tysymbol -> decl. % Abstract type
 type data   list data_decl   -> decl. % Data (defined) type
+type dind   ind_list         -> decl. % Inductive declaration
 type declls list logic_decl  -> decl. % Defined logic symbol
 type const  lsymbol  -> decl.
 % Symbol for theory (currently cannot be inspected)
@@ -139,6 +149,106 @@ external func why3.var-type var -> ty.
 % [why3.ls-type L T] Get the value type of a logic symbol. Fails if the
 % symbol has no value type (i.e. is a proposition)
 external func why3.ls-type lsymbol -> ty.
+
+% [why3.var-name V N] Get the identifier string of a variable symbol.
+external func why3.var-name var -> string.
+
+% [why3.ls-name L N] Get the identifier string of a logic symbol.
+external func why3.ls-name lsymbol -> string.
+
+% [why3.tysymbol-name Ts N] Get the identifier string of a type symbol.
+external func why3.tysymbol-name tysymbol -> string.
+
+% [why3.prsymbol-name Pr N] Get the identifier string of a proposition
+% symbol.
+external func why3.prsymbol-name prsymbol -> string.
+
+% [why3.theory-name Th N] Get the identifier string of a theory.
+external func why3.theory-name theory -> string.
+
+% [why3.meta-name M N] Get the name string of a meta declaration.
+external func why3.meta-name meta -> string.
+
+% [why3.decl-kind D K] Classify a declaration:
+% goal|lemma|axiom|typ|data|dind|declls|const.
+external func why3.decl-kind decl -> string.
+
+% [why3.decl-prop-kind D K] Get proposition kind for a proposition
+% declaration: goal|lemma|axiom.
+external func why3.decl-prop-kind decl -> string.
+
+% [why3.decl-prop-symbol D Pr] Project proposition symbol from a proposition
+% declaration.
+external func why3.decl-prop-symbol decl -> prsymbol.
+
+% [why3.decl-prop-term D T] Project proposition term from a proposition
+% declaration.
+external func why3.decl-prop-term decl -> term.
+
+% [why3.decl-typ D Ts] Project type symbol from a type declaration.
+external func why3.decl-typ decl -> tysymbol.
+
+% [why3.decl-const D L] Project logic symbol from a constant declaration.
+external func why3.decl-const decl -> lsymbol.
+
+% [why3.decl-data D DD] Project data declaration payload from a data
+% declaration.
+external func why3.decl-data decl -> list data_decl.
+
+% [why3.decl-ind D ID] Project inductive declaration payload from an
+% inductive declaration.
+external func why3.decl-ind decl -> ind_list.
+
+% [why3.decl-logic D LD] Project logic declaration payload from a logic
+% declaration.
+external func why3.decl-logic decl -> list logic_decl.
+
+% [why3.pp-decl D S] Pretty-print a declaration.
+external func why3.pp-decl decl -> string.
+
+% [why3.pp-logic-decl LD S] Pretty-print a logic declaration payload.
+external func why3.pp-logic-decl logic_decl -> string.
+
+% [why3.pp-data-decl DD S] Pretty-print a data declaration payload.
+external func why3.pp-data-decl data_decl -> string.
+
+% [why3.pp-ind-list ID S] Pretty-print an inductive declaration payload.
+external func why3.pp-ind-list ind_list -> string.
+
+% [why3.tdecl-kind TD K] Classify a task declaration: decl|use|meta|clone.
+external func why3.tdecl-kind tdecl -> string.
+
+% [why3.tdecl-decl TD D] Project declaration payload from a task declaration
+% node of kind decl.
+external func why3.tdecl-decl tdecl -> decl.
+
+% [why3.tdecl-use TD Th] Project theory payload from a task declaration node
+% of kind use.
+external func why3.tdecl-use tdecl -> theory.
+
+% [why3.tdecl-meta TD M] Project meta payload from a task declaration node
+% of kind meta.
+external func why3.tdecl-meta tdecl -> meta.
+
+% [why3.tdecl-meta-args TD Args] Project meta-argument payload from a task
+% declaration node of kind meta.
+external func why3.tdecl-meta-args tdecl -> list meta-arg.
+
+% [why3.tdecl-clone TD Th] Project cloned theory payload from a task
+% declaration node of kind clone.
+external func why3.tdecl-clone tdecl -> theory.
+
+% [why3.pp-tdecl TD S] Pretty-print a task declaration.
+external func why3.pp-tdecl tdecl -> string.
+
+% [why3.pp-theory Th S] Pretty-print a theory symbol.
+external func why3.pp-theory theory -> string.
+
+% [why3.pp-meta M S] Pretty-print a meta symbol.
+external func why3.pp-meta meta -> string.
+
+% [why3.pp-meta-arg A S] Pretty-print a meta argument.
+external func why3.pp-meta-arg meta-arg -> string.
 
 % [why3.pp-term T S] Convert a term to string using Why3's pretty printer
 external func why3.pp-term term -> string.

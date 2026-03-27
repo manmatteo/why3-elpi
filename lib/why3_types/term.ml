@@ -136,6 +136,7 @@ type why_simple_term =
   | Pabs of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs v)])
 [@@deriving elpi {declaration; context=[ctx_for_term];}]
 [@@elpi.type_code "term"]
+[@@elpi.type_doc "Why3 terms with explicit binders, optional type annotations on applications, triggers, and attributes."]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<term>"]
 let rec pp_simple_term = 
   fun fmt t -> match t with
