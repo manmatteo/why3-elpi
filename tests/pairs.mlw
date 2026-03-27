@@ -1,0 +1,6 @@
+type b
+
+function broken (arg: (b,b)) : b =
+  let (_,b2) = arg in
+  b2
+goal pairs [@ciao]: true
