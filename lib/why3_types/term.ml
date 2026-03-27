@@ -114,9 +114,18 @@ let rec simple_pattern_to_pattern p =
 
 type why_simple_term =
   | Tvar of WTerm.vsymbol [@elpi.var ctx_for_term]
+  | Tattr of string list * why_simple_term
   | Tint of int
-  | Tapp of WTerm.lsymbol * why_simple_term list
-  | Tquant of WTerm.quant * WTerm.vsymbol  * (why_simple_term [@elpi.binder "term" ctx_for_term (fun _q v -> Dctx_vs v)])
+  | Tapp of WTerm.lsymbol * why_simple_term list * why_simple_ty option
+  | Tlet of
+      why_simple_term *
+      WTerm.vsymbol *
+      (why_simple_term [@elpi.binder "term" ctx_for_term (fun _t v -> Dctx_vs v)])
+  | Tquant of
+      WTerm.quant *
+      WTerm.vsymbol *
+      why_simple_term list list option *
+      (why_simple_term [@elpi.binder "term" ctx_for_term (fun _q v _tr -> Dctx_vs v)])
   | Teps of WTerm.vsymbol * (why_simple_term [@elpi.binder "term" ctx_for_term (fun v -> Dctx_vs v)])
   | Ttrue | Tfalse
   | Tbinop of WTerm.binop * why_simple_term * why_simple_term
@@ -131,9 +140,11 @@ type why_simple_term =
 let rec pp_simple_term = 
   fun fmt t -> match t with
   | Tvar v -> Format.fprintf fmt "(%a:%a)" WPretty.print_vs v WPretty.print_ty v.vs_ty
+  | Tattr (_, t) -> pp_simple_term fmt t
   | Tint n -> Format.fprintf fmt "%d" n
-  | Tapp (ls, args) -> Format.fprintf fmt "%a(%a)" WPretty.print_ls ls (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") pp_simple_term) args
-  | Tquant (q, v, t) -> Format.fprintf fmt "%a %a. %a" (WPretty.print_quant) q WPretty.print_vs v pp_simple_term t
+  | Tapp (ls, args, _ty) -> Format.fprintf fmt "%a(%a)" WPretty.print_ls ls (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") pp_simple_term) args
+  | Tlet (t1, v, t2) -> Format.fprintf fmt "let %a = %a in %a" WPretty.print_vs v pp_simple_term t1 pp_simple_term t2
+  | Tquant (q, v, _triggers, t) -> Format.fprintf fmt "%a %a. %a" (WPretty.print_quant) q WPretty.print_vs v pp_simple_term t
   | Teps (v, t) -> Format.fprintf fmt "eps %a. %a" WPretty.print_vs v pp_simple_term t
   | Ttrue -> Format.fprintf fmt "true"
   | Tfalse -> Format.fprintf fmt "false"
@@ -143,6 +154,11 @@ let rec pp_simple_term =
   | Tcase (t, ty, branches) -> Format.fprintf fmt "case %a : %a of %a" pp_simple_term t why_simple_ty.pp ty (Format.pp_print_list ~pp_sep:Why3.Pp.comma (Why3.Pp.print_pair why_simple_pattern.pp pp_simple_term)) branches
   | Pabs (v, t) -> Format.fprintf fmt "(%a => %a)" WPretty.print_vs v pp_simple_term t
 let rec term_to_simple_term (t : WTerm.term) : why_simple_term =
+  let with_attrs raw =
+    let attrs = Why3.Ident.Sattr.elements t.t_attrs |> List.map (fun a -> a.Why3.Ident.attr_string) in
+    if attrs = [] then raw else Tattr (attrs, raw)
+  in
+  with_attrs @@
   match t.t_node with
   | Tvar v -> Tvar v
   | Tconst c -> (
@@ -151,9 +167,11 @@ let rec term_to_simple_term (t : WTerm.term) : why_simple_term =
     | ConstReal _ -> assert false
     | ConstStr _ -> assert false
   )
-  | Tapp (ls, args) -> Tapp (ls, List.map term_to_simple_term args)
+  | Tapp (ls, args) -> Tapp (ls, List.map term_to_simple_term args, Option.map ty_to_why_simple_ty t.t_ty)
   | Tif (t1, t2, t3) -> Tif (term_to_simple_term t1, term_to_simple_term t2, term_to_simple_term t3)
-  | Tlet (_, _) -> assert false
+  | Tlet (t1, tb) ->
+    let (v, t2) = WTerm.t_open_bound tb in
+    Tlet (term_to_simple_term t1, v, term_to_simple_term t2)
   | Tcase (t, branches) ->
     let first_pattern_type =
       match branches with
@@ -164,8 +182,14 @@ let rec term_to_simple_term (t : WTerm.term) : why_simple_term =
   | Teps t -> let (v, t) =  WTerm.t_open_bound t in Teps (v, term_to_simple_term t)
   | Tquant (q, t) ->
     (match WTerm.t_open_quant t with
-    | [v], _trig, t -> Tquant (q, v, term_to_simple_term t)
-    | v::vs, _trig,t -> Tquant (q, v, term_to_simple_term (WTerm.t_quant_close q vs [] t))
+    | v::vs, trig, t ->
+      let rec mk_chain first = function
+        | [] -> term_to_simple_term t
+        | w :: ws ->
+          let tr = if first then Some (List.map (List.map term_to_simple_term) trig) else None in
+          Tquant (q, w, tr, mk_chain false ws)
+      in
+      mk_chain true (v :: vs)
     | _ -> assert false)
   | Tbinop (op, t1, t2) -> Tbinop (op, term_to_simple_term t1, term_to_simple_term t2)
   | Tnot t -> Tnot (term_to_simple_term t)
@@ -177,18 +201,35 @@ and term_branch_to_simple_term (t : WTerm.term_branch) : (why_simple_pattern * w
   in (pattern_to_simple_pattern pattern, tm)
 
 let rec simple_term_to_term (st : why_simple_term) : WTerm.term =
-  let rec consume_quant q t =
-    match t with
-    | Tquant (q1, v, t) when q1 = q -> let vs, t  = consume_quant q t in v::vs, t
-    | t -> [],t
+  let simple_trigger_to_trigger (tr : why_simple_term list list) : WTerm.trigger =
+    List.map (List.map simple_term_to_term) tr
+  in
+  let rec consume_quant_cont q = function
+    | Tquant (q1, v, None, t) when q1 = q ->
+      let vs, body = consume_quant_cont q t in
+      (v :: vs, body)
+    | t -> ([], t)
   in
   match st with
   | Tvar v -> WTerm.t_var v
+  | Tattr (attrs, t) ->
+    let attrs =
+      List.fold_left
+        (fun sattr name -> Why3.Ident.Sattr.add (Why3.Ident.create_attribute name) sattr)
+        Why3.Ident.Sattr.empty
+        attrs
+    in
+    WTerm.t_attr_set attrs (simple_term_to_term t)
   | Tint n -> WTerm.t_const (Why3.Constant.int_const_of_int n) WTy.ty_int
-  | Tapp (ls, args) ->
+    | Tapp (ls, args, ty_opt) ->
       let targs = List.map simple_term_to_term args in
-      WTerm.t_app_infer ls targs (* Using t_app without inference might be more efficient, but I had troubles with typing @ applied to typed args*)
-  | Tquant (q, v, t) -> let vs, t = consume_quant q t in WTerm.t_quant_close q (v::vs) [] (simple_term_to_term t)
+      WTerm.t_app ls targs (Option.map why_simple_ty_to_ty ty_opt)
+  | Tlet (t1, v, t2) -> WTerm.t_let_close v (simple_term_to_term t1) (simple_term_to_term t2)
+  | Tquant (q, v, trig_opt, t) ->
+    let tail_vs, body = consume_quant_cont q t in
+    let trig = Option.value ~default:[] trig_opt in
+    let qbound = WTerm.t_close_quant (v :: tail_vs) (simple_trigger_to_trigger trig) (simple_term_to_term body) in
+    WTerm.t_quant q qbound
   | Teps (v, t) -> WTerm.t_eps_close v (simple_term_to_term t)
   | Ttrue -> WTerm.t_true
   | Tfalse -> WTerm.t_false
