@@ -1,24 +1,30 @@
 type a 'a
 type b
-function toto : b -> a 'a -> bool =
- fun a b ->
+
+function broken (arg: (b,b)) : b =
+  let (_,b2) = arg in
+  b2
+goal pairs [@ciao]: true
+
+
+function toto : (b , a 'a) -> bool =
+ fun _ ->
   true
 
 goal t [@ciao]: true
 
-axiom tata : forall x: b. forall x: a 'a. true
+
+axiom tata : forall _: b. forall _: a 'a. true
 function foo1 : (a 'a,a 'a) -> (a 'a,a 'a) -> bool =
- fun a b ->
- let (a1,a2) = a in
- let (b1,b2) = b in
+ fun _ _ ->
   true
 
 type c
 type toto = {eq: (c,c) -> (c,c) -> c}
-function br (f1: (c,c)) (f2: (c,c)) : toto =
+function br (_: (c,c)) (_: (c,c)) : toto =
 {eq = fun a b ->
-  let (a1,a2) = a in
-  let (b1,b2) = b in
+  let (_,_) = a in
+  let (_,b2) = b in
   b2
 }
 
@@ -27,7 +33,7 @@ constant x:c
 type queue = abstract { mutable fld: c }
 type eqdec 'a = { eq1 : 'a -> 'a -> bool }
 function ciao (b:c) (x: int) : c
-  = (fun i -> b) x
+  = (fun _ -> b) x
 
 predicate ff c c c
 function zz int int int : int
@@ -77,11 +83,11 @@ axiom sum_s : (forall x y:n. sum (s x) y (s y))
 axiom fib2_1 :  ff2(s z) (s z)
 axiom fib2_2 : ff2(s (s z)) (s z)
 axiom fib2_s : (forall x:n.
-    exists p:n. pred x p ->
-    exists q:n. pred p q ->
-    exists v:n. ff2 q v ->
-    exists w:n. ff2 p w ->
-    exists t:n. sum w z t ->
+  exists p:n. pred x p /\
+  exists q:n. pred p q /\
+  exists v:n. ff2 q v /\
+  exists w:n. ff2 p w /\
+  exists t:n. sum w z t /\
     ff2 x t)
 goal fib2: exists x. ff2(s (s (s (s (s z))))) x
 

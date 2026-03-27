@@ -1,0 +1,200 @@
+elpi: success
+theory Task
+
+type int
+
+type real
+
+type string
+
+predicate infix_eq 'a 'a
+
+(* use why3.BuiltIn.BuiltIn *)
+
+type bool =
+  | True
+  | False
+
+(* use why3.Bool.Bool *)
+
+type tuple0 =
+  | Tuple0 [@builtin]
+
+(* use why3.Tuple0.Tuple01 *)
+
+type unit [@builtin] = unit
+
+(* use why3.Unit.Unit *)
+
+type (->) 'a 'b
+
+function infix_at ('a -> 'b) 'a : 'b
+
+(* use why3.HighOrd.HighOrd *)
+
+type map 'a 'b = 'a -> 'b
+
+function get (f:'a -> 'b) (x:'a) : 'b = infix_at f x
+
+function set (f:'a -> 'b) (x:'a) (v:'b) : 'a -> 'b =
+  fun (y:'a) -> if y = x then v else infix_at f y
+
+function mixfix_lbrb (f:'a -> 'b) (x:'a) : 'b = infix_at f x
+
+function mixfix_lblsmnrb (f:'a -> 'b) (x:'a) (v:'b) : 'a -> 'b = set f x v
+
+(* use map.Map *)
+
+type ref 'a =
+  | Refqtmk [@builtin] (contents:'a)
+
+(* use why3.Ref.Ref *)
+
+function prefix_ex (r:ref 'a) : 'a = r.contents
+
+(* use ref.Ref1 *)
+
+constant zero : int = 0
+
+constant one : int = 1
+
+function prefix_mn int : int
+
+function infix_pl int int : int
+
+function infix_as int int : int
+
+predicate infix_ls int int
+
+function infix_mn (x:int) (y:int) : int = infix_pl x (prefix_mn y)
+
+predicate infix_gt (x:int) (y:int) = infix_ls y x
+
+predicate infix_lseq (x:int) (y:int) = infix_ls x y \/ x = y
+
+predicate infix_gteq (x:int) (y:int) = infix_lseq y x
+
+axiom Assoc :
+  forall x:int, y:int, z:int.
+   infix_pl (infix_pl x y) z = infix_pl x (infix_pl y z)
+
+(* clone algebra.Assoc with type t = int, function op = infix_pl,
+  prop Assoc1 = Assoc,  *)
+
+axiom Unit_def_l : forall x:int. infix_pl zero x = x
+
+axiom Unit_def_r : forall x:int. infix_pl x zero = x
+
+(* clone algebra.Monoid with type t1 = int, constant unit = zero,
+  function op1 = infix_pl, prop Unit_def_r1 = Unit_def_r,
+  prop Unit_def_l1 = Unit_def_l, prop Assoc2 = Assoc,  *)
+
+axiom Inv_def_l : forall x:int. infix_pl (prefix_mn x) x = zero
+
+axiom Inv_def_r : forall x:int. infix_pl x (prefix_mn x) = zero
+
+(* clone algebra.Group with type t2 = int, function inv = prefix_mn,
+  constant unit1 = zero, function op2 = infix_pl,
+  prop Inv_def_r1 = Inv_def_r, prop Inv_def_l1 = Inv_def_l,
+  prop Unit_def_r2 = Unit_def_r, prop Unit_def_l2 = Unit_def_l,
+  prop Assoc3 = Assoc,  *)
+
+axiom Comm : forall x:int, y:int. infix_pl x y = infix_pl y x
+
+(* clone algebra.Comm with type t3 = int, function op3 = infix_pl,
+  prop Comm1 = Comm,  *)
+
+(* meta AC function infix_pl *)
+
+(* clone algebra.CommutativeGroup with type t4 = int,
+  function inv1 = prefix_mn, constant unit2 = zero, function op4 = infix_pl,
+  prop Comm2 = Comm, prop Inv_def_r2 = Inv_def_r,
+  prop Inv_def_l2 = Inv_def_l, prop Unit_def_r3 = Unit_def_r,
+  prop Unit_def_l3 = Unit_def_l, prop Assoc4 = Assoc,  *)
+
+axiom Assoc5 :
+  forall x:int, y:int, z:int.
+   infix_as (infix_as x y) z = infix_as x (infix_as y z)
+
+(* clone algebra.Assoc with type t = int, function op = infix_as,
+  prop Assoc1 = Assoc5,  *)
+
+axiom Mul_distr_l :
+  forall x:int, y:int, z:int.
+   infix_as x (infix_pl y z) = infix_pl (infix_as x y) (infix_as x z)
+
+axiom Mul_distr_r :
+  forall x:int, y:int, z:int.
+   infix_as (infix_pl y z) x = infix_pl (infix_as y x) (infix_as z x)
+
+(* clone algebra.Ring with type t5 = int, function infix_as1 = infix_as,
+  function prefix_mn1 = prefix_mn, function infix_pl1 = infix_pl,
+  constant zero1 = zero, prop Mul_distr_r1 = Mul_distr_r,
+  prop Mul_distr_l1 = Mul_distr_l, prop Assoc6 = Assoc5, prop Comm3 = Comm,
+  prop Inv_def_r3 = Inv_def_r, prop Inv_def_l3 = Inv_def_l,
+  prop Unit_def_r4 = Unit_def_r, prop Unit_def_l4 = Unit_def_l,
+  prop Assoc7 = Assoc,  *)
+
+axiom Comm4 : forall x:int, y:int. infix_as x y = infix_as y x
+
+(* clone algebra.Comm with type t3 = int, function op3 = infix_as,
+  prop Comm1 = Comm4,  *)
+
+(* meta AC function infix_as *)
+
+(* clone algebra.CommutativeRing with type t6 = int,
+  function infix_as2 = infix_as, function prefix_mn2 = prefix_mn,
+  function infix_pl2 = infix_pl, constant zero2 = zero, prop Comm5 = Comm4,
+  prop Mul_distr_r2 = Mul_distr_r, prop Mul_distr_l2 = Mul_distr_l,
+  prop Assoc8 = Assoc5, prop Comm6 = Comm, prop Inv_def_r4 = Inv_def_r,
+  prop Inv_def_l4 = Inv_def_l, prop Unit_def_r5 = Unit_def_r,
+  prop Unit_def_l5 = Unit_def_l, prop Assoc9 = Assoc,  *)
+
+axiom Unitary : forall x:int. infix_as one x = x
+
+axiom NonTrivialRing : not zero = one
+
+(* clone algebra.UnitaryCommutativeRing with type t7 = int,
+  constant one1 = one, function infix_as3 = infix_as,
+  function prefix_mn3 = prefix_mn, function infix_pl3 = infix_pl,
+  constant zero3 = zero, prop NonTrivialRing1 = NonTrivialRing,
+  prop Unitary1 = Unitary, prop Comm7 = Comm4,
+  prop Mul_distr_r3 = Mul_distr_r, prop Mul_distr_l3 = Mul_distr_l,
+  prop Assoc10 = Assoc5, prop Comm8 = Comm, prop Inv_def_r5 = Inv_def_r,
+  prop Inv_def_l5 = Inv_def_l, prop Unit_def_r6 = Unit_def_r,
+  prop Unit_def_l6 = Unit_def_l, prop Assoc11 = Assoc,  *)
+
+(* clone relations.EndoRelation with type t8 = int,
+  predicate rel = infix_lseq,  *)
+
+axiom Refl : forall x:int. infix_lseq x x
+
+(* clone relations.Reflexive with type t9 = int, predicate rel1 = infix_lseq,
+  prop Refl1 = Refl,  *)
+
+(* clone relations.EndoRelation with type t8 = int,
+  predicate rel = infix_lseq,  *)
+
+axiom Trans :
+  forall x:int, y:int, z:int.
+   infix_lseq x y -> infix_lseq y z -> infix_lseq x z
+
+(* clone relations.Transitive with type t10 = int,
+  predicate rel2 = infix_lseq, prop Trans1 = Trans,  *)
+
+(* clone relations.PreOrder with type t11 = int, predicate rel3 = infix_lseq,
+  prop Trans2 = Trans, prop Refl2 = Refl,  *)
+
+(* clone relations.EndoRelation with type t8 = int,
+  predicate rel = infix_lseq,  *)
+
+axiom Antisymm :
+  forall x:int, y:int. infix_lseq x y -> infix_lseq y x -> x = y
+
+(* clone relations.Antisymmetric with type t12 = int,
+  predicate rel4 = infix_lseq, prop Antisymm1 = Antisymm,  *)
+
+(* clone relations.PartialOrder with type t13 = int,
+  predicate rel5 = infix_lseq, prop Antisymm2 = Antisymm,
+  prop Trans3 = Trans, prop Refl3 = Refl,  *)
+

@@ -1,0 +1,7 @@
+type b
+
+function broken (arg: b) : b =
+  match arg with
+  | b2 -> b2
+  end
+goal pairs : true

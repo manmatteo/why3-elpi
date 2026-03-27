@@ -1,0 +1,118 @@
+(rule
+ (alias runtest)
+ (targets mini.lp_param.actual.out)
+ (deps
+  mini.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove mini.mlw --extra-config why3extra.test.conf -D why3 -a "lp param")
+      (run head -200))))
+   (diff mini.lp_param.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets simple.lp_param.actual.out)
+ (deps
+  simple.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove simple.mlw --extra-config why3extra.test.conf -D why3 -a "lp param")
+      (run head -200))))
+   (diff simple.lp_param.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets tc.lp_param.actual.out)
+ (deps
+  tc.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove tc.mlw --extra-config why3extra.test.conf -D why3 -a "lp param")
+      (run head -200))))
+   (diff tc.lp_param.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets mini.lp_nop.actual.out)
+ (deps
+  mini.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove mini.mlw --extra-config why3extra.test.conf -D why3 -a "lp nop")
+      (run head -200))))
+   (diff mini.lp_nop.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets simple.lp_nop.actual.out)
+ (deps
+  simple.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove simple.mlw --extra-config why3extra.test.conf -D why3 -a "lp nop")
+      (run head -200))))
+   (diff simple.lp_nop.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets tc.lp_nop.actual.out)
+ (deps
+  tc.mlw
+  why3extra.test.conf
+  ../transform.elpi
+  ../bin/why3_elpi_trans.cmxs)
+ (action
+  (progn
+   (with-stdout-to %{targets}
+    (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+     (pipe-outputs
+      (run why3 prove tc.mlw --extra-config why3extra.test.conf -D why3 -a "lp nop")
+      (run head -200))))
+   (diff tc.lp_nop.expected.out %{targets}))))
+
+(rule
+ (alias runtest)
+ (targets linked_list_rev.lp_nop.actual.out)
+ (deps
+   why3extra.test.conf
+   linked_list_rev.mlw
+   ../transform.elpi
+   ../bin/why3_elpi_trans.cmxs)
+ (action
+   (progn
+    (with-stdout-to %{targets}
+     (setenv WHY3_ELPI_PROGRAM ../transform.elpi
+      (pipe-outputs
+       (run why3 prove linked_list_rev.mlw --extra-config why3extra.test.conf -D why3 -a "lp nop")
+       (run head -200))))
+   (diff linked_list_rev.lp_nop.expected.out %{targets}))))
