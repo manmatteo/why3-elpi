@@ -191,11 +191,15 @@ module PPX = struct
     { ContextualConversion.ty; pp_doc = (fun _ () -> ()); pp = (fun fmt c -> Format.fprintf fmt "'%c'" c);
       embed; readback }
 
-  (** option a *)
-  let option (a : ('a, 'h, 'c) ContextualConversion.t)
-      : ('a option, 'h, 'c) ContextualConversion.t =
+  (* allocate_constructors declares global symbols and must run before
+     Setup.init.  We do this once at module load with ParamC placeholders.
+     declare_allocated is pure, so we instantiate typed converters lazily
+     without any runtime global declarations or identity hacks. *)
+
+  let option_decl (a : ('a, 'h, 'c) ContextualConversion.t)
+      : ('a option, 'h, 'c) AlgebraicData.declaration =
     let open AlgebraicData in
-    declare {
+    Decl {
       ty = Conversion.TyApp ("option", a.ContextualConversion.ty, []);
       doc = "The option type";
       pp = (fun fmt -> function
@@ -209,12 +213,11 @@ module PPX = struct
       ]
     }
 
-  (** pair a b *)
-  let pair (a : ('a, 'h, 'c) ContextualConversion.t)
-           (b : ('b, 'h, 'c) ContextualConversion.t)
-      : ('a * 'b, 'h, 'c) ContextualConversion.t =
+  let pair_decl (a : ('a, 'h, 'c) ContextualConversion.t)
+                (b : ('b, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b, 'h, 'c) AlgebraicData.declaration =
     let open AlgebraicData in
-    declare {
+    Decl {
       ty = Conversion.TyApp ("pair", a.ContextualConversion.ty,
                              [b.ContextualConversion.ty]);
       doc = "Pairs";
@@ -222,18 +225,16 @@ module PPX = struct
         Format.fprintf fmt "pr(%a,%a)" a.ContextualConversion.pp x b.ContextualConversion.pp y);
       constructors = [
         K ("pr", "pr", CA (a, CA (b, N)), B (fun x y -> (x, y)),
-          M (fun ~ok ~ko -> function (x, y) -> ok x y
-            |> (fun _ -> ko ())));
+          M (fun ~ok ~ko:_ -> function (x, y) -> ok x y));
       ]
     }
 
-  (** triple a b cc *)
-  let triple (a : ('a, 'h, 'c) ContextualConversion.t)
-             (b : ('b, 'h, 'c) ContextualConversion.t)
-             (cc : ('cc, 'h, 'c) ContextualConversion.t)
-      : ('a * 'b * 'cc, 'h, 'c) ContextualConversion.t =
+  let triple_decl (a : ('a, 'h, 'c) ContextualConversion.t)
+                  (b : ('b, 'h, 'c) ContextualConversion.t)
+                  (cc : ('cc, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc, 'h, 'c) AlgebraicData.declaration =
     let open AlgebraicData in
-    declare {
+    Decl {
       ty = Conversion.TyApp ("triple", a.ContextualConversion.ty,
                              [b.ContextualConversion.ty; cc.ContextualConversion.ty]);
       doc = "Triples";
@@ -247,13 +248,13 @@ module PPX = struct
       ]
     }
 
-  let quadruple (a : ('a, 'h, 'c) ContextualConversion.t)
-                (b : ('b, 'h, 'c) ContextualConversion.t)
-                (cc : ('cc, 'h, 'c) ContextualConversion.t)
-                (d : ('d, 'h, 'c) ContextualConversion.t)
-      : ('a * 'b * 'cc * 'd, 'h, 'c) ContextualConversion.t =
+  let quadruple_decl (a : ('a, 'h, 'c) ContextualConversion.t)
+                     (b : ('b, 'h, 'c) ContextualConversion.t)
+                     (cc : ('cc, 'h, 'c) ContextualConversion.t)
+                     (d : ('d, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc * 'd, 'h, 'c) AlgebraicData.declaration =
     let open AlgebraicData in
-    declare {
+    Decl {
       ty = Conversion.TyApp ("quadruple", a.ContextualConversion.ty,
                              [b.ContextualConversion.ty;
                               cc.ContextualConversion.ty;
@@ -270,14 +271,14 @@ module PPX = struct
       ]
     }
 
-  let quintuple (a : ('a, 'h, 'c) ContextualConversion.t)
-                (b : ('b, 'h, 'c) ContextualConversion.t)
-                (cc : ('cc, 'h, 'c) ContextualConversion.t)
-                (d : ('d, 'h, 'c) ContextualConversion.t)
-                (e : ('e, 'h, 'c) ContextualConversion.t)
-      : ('a * 'b * 'cc * 'd * 'e, 'h, 'c) ContextualConversion.t =
+  let quintuple_decl (a : ('a, 'h, 'c) ContextualConversion.t)
+                     (b : ('b, 'h, 'c) ContextualConversion.t)
+                     (cc : ('cc, 'h, 'c) ContextualConversion.t)
+                     (d : ('d, 'h, 'c) ContextualConversion.t)
+                     (e : ('e, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc * 'd * 'e, 'h, 'c) AlgebraicData.declaration =
     let open AlgebraicData in
-    declare {
+    Decl {
       ty = Conversion.TyApp ("quintuple", a.ContextualConversion.ty,
                              [b.ContextualConversion.ty;
                               cc.ContextualConversion.ty;
@@ -295,6 +296,69 @@ module PPX = struct
           M (fun ~ok ~ko:_ -> function (x, y, z, w, v) -> ok x y z w v));
       ]
     }
+
+  let option_alloc : AlgebraicData.allocation =
+    AlgebraicData.allocate_constructors
+      (AlgebraicData.ParamC (fun a -> option_decl a))
+
+  let pair_alloc : AlgebraicData.allocation =
+    AlgebraicData.allocate_constructors
+      (AlgebraicData.ParamC (fun a ->
+         AlgebraicData.ParamC (fun b -> pair_decl a b)))
+
+  let triple_alloc : AlgebraicData.allocation =
+    AlgebraicData.allocate_constructors
+      (AlgebraicData.ParamC (fun a ->
+         AlgebraicData.ParamC (fun b ->
+           AlgebraicData.ParamC (fun cc -> triple_decl a b cc))))
+
+  let quadruple_alloc : AlgebraicData.allocation =
+    AlgebraicData.allocate_constructors
+      (AlgebraicData.ParamC (fun a ->
+         AlgebraicData.ParamC (fun b ->
+           AlgebraicData.ParamC (fun cc ->
+             AlgebraicData.ParamC (fun d -> quadruple_decl a b cc d)))))
+
+  let quintuple_alloc : AlgebraicData.allocation =
+    AlgebraicData.allocate_constructors
+      (AlgebraicData.ParamC (fun a ->
+         AlgebraicData.ParamC (fun b ->
+           AlgebraicData.ParamC (fun cc ->
+             AlgebraicData.ParamC (fun d ->
+               AlgebraicData.ParamC (fun e -> quintuple_decl a b cc d e))))))
+
+  (** option a *)
+  let option (a : ('a, 'h, 'c) ContextualConversion.t)
+      : ('a option, 'h, 'c) ContextualConversion.t =
+    AlgebraicData.declare_allocated option_alloc (option_decl a)
+
+  (** pair a b *)
+  let pair (a : ('a, 'h, 'c) ContextualConversion.t)
+           (b : ('b, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b, 'h, 'c) ContextualConversion.t =
+    AlgebraicData.declare_allocated pair_alloc (pair_decl a b)
+
+  (** triple a b cc *)
+  let triple (a : ('a, 'h, 'c) ContextualConversion.t)
+             (b : ('b, 'h, 'c) ContextualConversion.t)
+             (cc : ('cc, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc, 'h, 'c) ContextualConversion.t =
+    AlgebraicData.declare_allocated triple_alloc (triple_decl a b cc)
+
+  let quadruple (a : ('a, 'h, 'c) ContextualConversion.t)
+                (b : ('b, 'h, 'c) ContextualConversion.t)
+                (cc : ('cc, 'h, 'c) ContextualConversion.t)
+                (d : ('d, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc * 'd, 'h, 'c) ContextualConversion.t =
+    AlgebraicData.declare_allocated quadruple_alloc (quadruple_decl a b cc d)
+
+  let quintuple (a : ('a, 'h, 'c) ContextualConversion.t)
+                (b : ('b, 'h, 'c) ContextualConversion.t)
+                (cc : ('cc, 'h, 'c) ContextualConversion.t)
+                (d : ('d, 'h, 'c) ContextualConversion.t)
+                (e : ('e, 'h, 'c) ContextualConversion.t)
+      : ('a * 'b * 'cc * 'd * 'e, 'h, 'c) ContextualConversion.t =
+    AlgebraicData.declare_allocated quintuple_alloc (quintuple_decl a b cc d e)
 
   (* Embedding/readback projections for use in algebraic constructors *)
   let embed_option a = (option a).ContextualConversion.embed
@@ -325,6 +389,12 @@ module Doc = struct
     let open Conversion in
     function
     | TyName s -> s
+    | TyApp ("->", a, [b]) ->
+        let inner = Printf.sprintf "%s -> %s"
+          (show_ty_ast ~prec:AppArg a)
+          (show_ty_ast ~prec:Arrow b)
+        in
+        (match prec with AppArg -> "(" ^ inner ^ ")" | Arrow -> inner)
     | TyApp (s, a, []) ->
         let inner = Printf.sprintf "%s %s" s (show_ty_ast ~prec:AppArg a) in
         (match prec with AppArg -> "(" ^ inner ^ ")" | Arrow -> inner)
@@ -341,7 +411,7 @@ module Doc = struct
     let _ = ty in
     let arg_str = match args with
       | [] -> ""
-      | _ -> " " ^ String.concat " -> " (List.map show_ty_ast args) ^ " ->" in
+      | _ -> " " ^ String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) args) ^ " ->" in
     Format.fprintf fmt "@[<hov2>type %s@[<hov>%s %s.@]@]@\n%% %s@\n"
       name arg_str (show_ty_ast ty) doc
 
@@ -350,7 +420,7 @@ module Doc = struct
     List.iter (fun (name, adoc, arg_tys) ->
       let arg_str = match arg_tys with
         | [] -> ""
-        | _ -> " " ^ String.concat " -> " (List.map show_ty_ast arg_tys) ^ " ->" in
+        | _ -> " " ^ String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) arg_tys) ^ " ->" in
       Format.fprintf fmt "@[<hov2>type %s@[<hov>%s.@]@]@\n%% %s@\n"
         name arg_str adoc
     ) args

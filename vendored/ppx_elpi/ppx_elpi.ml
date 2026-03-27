@@ -763,7 +763,10 @@ let rec find_embed_of (module B : Ast_builder.S) current_mutrec_block  ty = let 
       eapply (evar (elpi_embed_name id)) (List.map (find_embed_of (module B) current_mutrec_block) params)
   | t -> [%expr [%e conversion_of (module B) t ].Elpi.API.ContextualConversion.embed ]
   in
-  [%expr fun ~depth h c s t -> [%e aux ty ] ~depth h c s t ]
+  [%expr
+    let elpi__embed = [%e aux ty ] in
+    fun ~depth h c s t -> elpi__embed ~depth h c s t
+  ]
 
 let rec find_readback_of (module B : Ast_builder.S) current_mutrec_block  ty = let open B in
   let rec aux ty =
@@ -781,7 +784,10 @@ let rec find_readback_of (module B : Ast_builder.S) current_mutrec_block  ty = l
       eapply (evar (elpi_readback_name id)) (List.map (find_readback_of (module B) current_mutrec_block) params)
   | t -> [%expr [%e conversion_of (module B) t ].Elpi.API.ContextualConversion.readback ]
   in
-  [%expr fun ~depth h c s t -> [%e aux ty ] ~depth h c s t ]
+  [%expr
+    let elpi__readback = [%e aux ty ] in
+    fun ~depth h c s t -> elpi__readback ~depth h c s t
+  ]
 
 let rec find_ty_ast_of (module B : Ast_builder.S) current_mutrec_block  ty = let open B in
   match ty with

@@ -7,7 +7,10 @@ module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
 module Ctx_for_ctx_for_term = Term.Ctx_for_ctx_for_term
 
 (* Accumulate declarations from Elpi PPX here *)
-let declaration : Elpi.API.BuiltIn.declaration list = !Ty.declaration @ !Term.declaration @ !Task.declaration
+let declaration : Elpi.API.BuiltIn.declaration list =
+  !Ty.declaration
+  @ !Term.declaration
+  @ !Task.declaration
 let why3_builtin_declarations = Builtins.why3_builtin_declarations
 
 (* Add a declaration to the list *)
