@@ -53,18 +53,13 @@ module BuiltInContextualData : sig
   val int     : (int, 'c, 'csts) Elpi.API.ContextualConversion.t
   val float   : (float, 'c, 'csts) Elpi.API.ContextualConversion.t
   val string  : (string, 'c, 'csts) Elpi.API.ContextualConversion.t
-  val loc     : (Elpi.API.Ast.Loc.t, 'c, 'csts) Elpi.API.ContextualConversion.t
-  val any     : (Elpi.API.Data.term, 'c, 'csts) Elpi.API.ContextualConversion.t
   val nominal : (Elpi.API.RawData.constant, 'c, 'csts) Elpi.API.ContextualConversion.t
   val list    : ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
                 ('a list, 'c, 'csts) Elpi.API.ContextualConversion.t
   val polyA0  : (Elpi.API.Data.term, 'c, 'csts) Elpi.API.ContextualConversion.t
-  val polyA1  : (Elpi.API.Data.term, 'c, 'csts) Elpi.API.ContextualConversion.t
-  val polyA2  : (Elpi.API.Data.term, 'c, 'csts) Elpi.API.ContextualConversion.t
 end
 
 module PPX : sig
-  val bool : (bool, 'c, 'csts) Elpi.API.ContextualConversion.t
   val char : (char, 'c, 'csts) Elpi.API.ContextualConversion.t
 
   val option :
@@ -97,60 +92,6 @@ module PPX : sig
     ('e, 'c, 'csts) Elpi.API.ContextualConversion.t ->
     ('a * 'b * 'cc * 'd * 'e, 'c, 'csts) Elpi.API.ContextualConversion.t
 
-  val embed_option :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a option, 'c, 'csts) Elpi.API.ContextualConversion.embedding
-  val readback_option :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a option, 'c, 'csts) Elpi.API.ContextualConversion.readback
-
-  val embed_pair :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b, 'c, 'csts) Elpi.API.ContextualConversion.embedding
-  val readback_pair :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b, 'c, 'csts) Elpi.API.ContextualConversion.readback
-
-  val embed_triple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc, 'c, 'csts) Elpi.API.ContextualConversion.embedding
-  val readback_triple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc, 'c, 'csts) Elpi.API.ContextualConversion.readback
-
-  val embed_quadruple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('d, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc * 'd, 'c, 'csts) Elpi.API.ContextualConversion.embedding
-  val readback_quadruple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('d, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc * 'd, 'c, 'csts) Elpi.API.ContextualConversion.readback
-
-  val embed_quintuple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('d, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('e, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc * 'd * 'e, 'c, 'csts) Elpi.API.ContextualConversion.embedding
-  val readback_quintuple :
-    ('a, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('b, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('d, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('e, 'c, 'csts) Elpi.API.ContextualConversion.t ->
-    ('a * 'b * 'cc * 'd * 'e, 'c, 'csts) Elpi.API.ContextualConversion.readback
 end
 
 module Doc : sig

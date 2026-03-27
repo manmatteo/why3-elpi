@@ -108,14 +108,6 @@ module BuiltInContextualData = struct
     readback = (fun ~depth _ctx _csts s t -> BuiltInData.string.readback ~depth s t);
   }
 
-  let loc : (Ast.Loc.t, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = BuiltInData.loc.ty;
-    pp_doc = BuiltInData.loc.pp_doc;
-    pp = BuiltInData.loc.pp;
-    embed = (fun ~depth _ctx _csts s x -> BuiltInData.loc.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> BuiltInData.loc.readback ~depth s t);
-  }
-
   let any : (Data.term, 'ctx, 'csts) ContextualConversion.t = {
     ContextualConversion.ty = BuiltInData.any.ty;
     pp_doc = BuiltInData.any.pp_doc;
@@ -162,22 +154,12 @@ module BuiltInContextualData = struct
 
   (** Placeholder polynomial type parameter (for generated code). *)
   let polyA0 = any
-  let polyA1 = any
-  let polyA2 = any
 end
 
 (* ------------------------------------------------------------------ *)
 (** {2 Contextual conversions for common types used in the PPX} *)
 
 module PPX = struct
-
-  let bool : (bool, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = Elpi.Builtin.bool.ty;
-    pp_doc = Elpi.Builtin.bool.pp_doc;
-    pp = Elpi.Builtin.bool.pp;
-    embed = (fun ~depth _ctx _csts s x -> Elpi.Builtin.bool.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> Elpi.Builtin.bool.readback ~depth s t);
-  }
 
   (** Char encoded as a single-character string. *)
   let char : (char, 'ctx, 'csts) ContextualConversion.t =
@@ -359,22 +341,6 @@ module PPX = struct
                 (e : ('e, 'h, 'c) ContextualConversion.t)
       : ('a * 'b * 'cc * 'd * 'e, 'h, 'c) ContextualConversion.t =
     AlgebraicData.declare_allocated quintuple_alloc (quintuple_decl a b cc d e)
-
-  (* Embedding/readback projections for use in algebraic constructors *)
-  let embed_option a = (option a).ContextualConversion.embed
-  let readback_option a = (option a).ContextualConversion.readback
-
-  let embed_pair a b = (pair a b).ContextualConversion.embed
-  let readback_pair a b = (pair a b).ContextualConversion.readback
-
-  let embed_triple a b cc = (triple a b cc).ContextualConversion.embed
-  let readback_triple a b cc = (triple a b cc).ContextualConversion.readback
-
-  let embed_quadruple a b cc d = (quadruple a b cc d).ContextualConversion.embed
-  let readback_quadruple a b cc d = (quadruple a b cc d).ContextualConversion.readback
-
-  let embed_quintuple a b cc d e = (quintuple a b cc d e).ContextualConversion.embed
-  let readback_quintuple a b cc d e = (quintuple a b cc d e).ContextualConversion.readback
 
 end
 
