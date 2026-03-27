@@ -9,174 +9,52 @@ let declaration = ref []
 module WTerm  =
 struct
 include Why3.Term
-    let elpi_constant_type_vsymbol = "vsymbol"
-    let elpi_constant_type_vsymbolc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_type_vsymbol
-    let elpi_opaque_data_decl_vsymbol = Elpi.API.OpaqueData.declare
-        { Elpi.API.OpaqueData.name = "var";
-          doc = "Embedding of variable symbols";
-          pp = (pp_why_ident Why3.Pretty.print_vs);
-          compare = vs_compare;
-          hash = Hashtbl.hash;
-          hconsed = false;
-          constants = [] }
-    module Ctx_for_vsymbol =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let vsymbol : 'c .  (vsymbol, 'c, 'csts)
-          Elpi.API.ContextualConversion.t
-      =
-      let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-        elpi_opaque_data_decl_vsymbol in
-      let embed ~depth  _ _ s t = embed ~depth s t in
-      let readback ~depth  _ _ s t = readback ~depth s t in
-      { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
-      }
-    let _ = vsymbol
-    let elpi_embed_vsymbol = vsymbol.Elpi.API.ContextualConversion.embed
-    let elpi_readback_vsymbol = vsymbol.Elpi.API.ContextualConversion.readback
-    let elpi_vsymbol = Elpi.API.BuiltIn.MLDataC vsymbol
-    class ctx_for_vsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_vsymbol.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_vsymbol : (Ctx_for_vsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth:_ h c s -> (s, ((new ctx_for_vsymbol) h s), c, (List.concat []))
-    let () = declaration := ((!declaration) @ [elpi_vsymbol])
+    type vsymbol = Why3.Term.vsymbol
+    [@@elpi.opaque {
+      Elpi.API.OpaqueData.name = "var";
+      doc = "Embedding of variable symbols";
+      pp = (pp_why_ident Why3.Pretty.print_vs);
+      compare = vs_compare;
+      hash = Hashtbl.hash;
+      hconsed = false;
+      constants = [];
+    }]
+    [@@deriving elpi {declaration}]
 
-    let elpi_constant_type_lsymbol = "lsymbol"
-    let _ = elpi_constant_type_lsymbol
-    let elpi_constant_type_lsymbolc =
-      Elpi.API.RawData.Constants.declare_global_symbol
-        elpi_constant_type_lsymbol
-    let _ = elpi_constant_type_lsymbolc
-    let elpi_opaque_data_decl_lsymbol =
-      Elpi.API.OpaqueData.declare
-        {
-          Elpi.API.OpaqueData.name = "lsymbol";
-          doc =
-            "Embedding of predicate symbols. Name, argument and value type can be accessed via native predicates.";
-          pp = (pp_why_data Why3.Pretty.print_ls);
-          compare = ls_compare;
-          hash = ls_hash;
-          hconsed = false;
-          constants = [("infix_at", fs_func_app)]
-        }
-    let _ = elpi_opaque_data_decl_lsymbol
-    module Ctx_for_lsymbol =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let lsymbol :
-      'c .
-        (lsymbol, 'c, 'csts)
-          Elpi.API.ContextualConversion.t
-      =
-      let { Elpi.API.Conversion.embed = embed; readback; ty; pp_doc; pp } =
-        elpi_opaque_data_decl_lsymbol in
-      let embed ~depth  _ _ s t = embed ~depth s t in
-      let readback ~depth  _ _ s t = readback ~depth s t in
-      { Elpi.API.ContextualConversion.embed = embed; readback; ty; pp_doc; pp
-      }
-    let elpi_embed_lsymbol = lsymbol.Elpi.API.ContextualConversion.embed
-    let elpi_readback_lsymbol = lsymbol.Elpi.API.ContextualConversion.readback
-    let elpi_lsymbol = Elpi.API.BuiltIn.MLDataC lsymbol
-    class ctx_for_lsymbol (h : Elpi.API.Data.hyps)  (_ : Elpi.API.Data.state) : Ctx_for_lsymbol.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_lsymbol : (Ctx_for_lsymbol.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth h c s -> (s, ((new ctx_for_lsymbol) h s), c, (List.concat []))
-    let () = declaration := ((!declaration) @ [elpi_lsymbol])
+    type lsymbol = Why3.Term.lsymbol
+    [@@elpi.opaque {
+      Elpi.API.OpaqueData.name = "lsymbol";
+      doc =
+        "Embedding of predicate symbols. Name, argument and value type can be accessed via native predicates.";
+      pp = (pp_why_data Why3.Pretty.print_ls);
+      compare = ls_compare;
+      hash = ls_hash;
+      hconsed = false;
+      constants = [("infix_at", fs_func_app)];
+    }]
+    [@@deriving elpi {declaration}]
 
-    let elpi_constant_type_quant = "quant"
-    let elpi_constant_type_quantc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_type_quant
-    let elpi_constant_constructor_quant_Tforall = "tforall"
-    let elpi_constant_constructor_quant_Tforallc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_quant_Tforall
-    let elpi_constant_constructor_quant_Texists = "texists"
-    let elpi_constant_constructor_quant_Texistsc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_quant_Texists
-    module Ctx_for_quant =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let rec elpi_embed_quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.embedding =
-      fun ~depth:elpi__depth -> fun elpi__hyps -> fun elpi__constraints -> fun elpi__state ->
-              function
-              | Tforall -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_quant_Tforallc []), (List.concat []))
-              | Texists -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_quant_Texistsc []), (List.concat []))
-    and elpi_readback_quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.readback =
-      fun ~depth:elpi__depth -> fun elpi__hyps -> fun elpi__constraints -> fun elpi__state -> fun elpi__x ->
-                match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_quant_Tforallc -> (elpi__state, Tforall, [])
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_quant_Texistsc -> (elpi__state, Texists, [])
-                | _ -> Elpi.API.Utils.type_error (Format.asprintf "Not a constructor of type %s: %a" "quant" (Elpi.API.RawPp.term elpi__depth) elpi__x)
-    and quant : 'c 'csts .  (quant, 'c, 'csts) Elpi.API.ContextualConversion.t =
-      let kind = Elpi.API.ContextualConversion.TyName "quant" in {
-        Elpi.API.ContextualConversion.ty = kind;
-        pp_doc = (fun fmt -> fun () ->
-               Elpi_api_compat.Doc.kind fmt kind ~doc:"quant";
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tforall" ~doc:"Tforall" ~args:[];
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"texists" ~doc:"Texists" ~args:[]);
-        pp = (fun fmt ->
-             function
-             | Tforall -> Format.fprintf fmt "\226\136\128"
-             | Texists -> Format.fprintf fmt "\226\136\131");
-        embed = elpi_embed_quant;
-        readback = elpi_readback_quant
-      }
-    let elpi_quant = Elpi.API.BuiltIn.MLDataC quant
-    class ctx_for_quant (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state) : Ctx_for_quant.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_quant : (Ctx_for_quant.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth -> fun h -> fun c -> fun s -> (s, ((new ctx_for_quant) h s), c, (List.concat []))
-    let () = declaration := ((!declaration) @ [elpi_quant])
+    type quant = Why3.Term.quant =
+      | Tforall
+      | Texists
+    [@@deriving elpi {declaration}]
+    [@@elpi.type_code "quant"]
+    [@@elpi.pp fun fmt -> function
+      | Tforall -> Format.fprintf fmt "\226\136\128"
+      | Texists -> Format.fprintf fmt "\226\136\131"]
 
-    let elpi_constant_type_binop = "binop"
-    let elpi_constant_type_binopc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_type_binop
-    let elpi_constant_constructor_binop_Tand = "tand"
-    let elpi_constant_constructor_binop_Tandc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_binop_Tand
-    let elpi_constant_constructor_binop_Tor = "tor"
-    let elpi_constant_constructor_binop_Torc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_binop_Tor let elpi_constant_constructor_binop_Timplies = "timplies"
-    let elpi_constant_constructor_binop_Timpliesc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_binop_Timplies
-    let elpi_constant_constructor_binop_Tiff = "tiff"
-    let elpi_constant_constructor_binop_Tiffc = Elpi.API.RawData.Constants.declare_global_symbol elpi_constant_constructor_binop_Tiff
-    module Ctx_for_binop =
-      struct
-        class type t = object inherit Elpi_api_compat.ctx end
-      end
-    let rec elpi_embed_binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.embedding =
-      fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state ->
-              function
-              | Tand -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Tandc []), (List.concat []))
-              | Tor -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Torc []), (List.concat []))
-              | Timplies -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Timpliesc []), (List.concat []))
-              | Tiff -> (elpi__state, (Elpi.API.RawData.mkAppGlobalL elpi_constant_constructor_binop_Tiffc []), (List.concat []))
-    and elpi_readback_binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.readback =
-      fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state elpi__x ->
-                match Elpi.API.RawData.look ~depth:elpi__depth elpi__x with
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Tandc -> (elpi__state, Tand, [])
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Torc -> (elpi__state, Tor, [])
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Timpliesc -> (elpi__state, Timplies, [])
-                | Elpi.API.RawData.Const elpi__hd when elpi__hd == elpi_constant_constructor_binop_Tiffc -> (elpi__state, Tiff, [])
-                | _ -> Elpi.API.Utils.type_error (Format.asprintf "Not a constructor of type %s: %a" "binop" (Elpi.API.RawPp.term elpi__depth) elpi__x)
-    and binop : 'c 'csts .  (binop, 'c, 'csts) Elpi.API.ContextualConversion.t =
-      let kind = Elpi.API.ContextualConversion.TyName "binop" in
-      {
-        Elpi.API.ContextualConversion.ty = kind;
-        pp_doc =
-          (fun fmt ->
-             fun () ->
-               Elpi_api_compat.Doc.kind fmt kind ~doc:"binop";
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tand" ~doc:"Tand" ~args:[];
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tor" ~doc:"Tor" ~args:[];
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"timplies" ~doc:"Timplies" ~args:[];
-               Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"tiff" ~doc:"Tiff" ~args:[]);
-        pp = (fun fmt -> function | Tand -> Format.fprintf fmt "/\\" | Tor -> Format.fprintf fmt "\\/" | Timplies -> Format.fprintf fmt "=>" | Tiff -> Format.fprintf fmt "<=>");
-        embed = elpi_embed_binop;
-        readback = elpi_readback_binop
-      }
-    let elpi_binop = Elpi.API.BuiltIn.MLDataC binop
-    class ctx_for_binop (h : Elpi.API.Data.hyps)  (s : Elpi.API.Data.state) : Ctx_for_binop.t =
-      object (_) inherit  ((Elpi_api_compat.ctx) h) end
-    let (in_ctx_for_binop : (Ctx_for_binop.t, 'csts) Elpi_api_compat.ctx_readback) =
-      fun ~depth h c s -> (s, ((new ctx_for_binop) h s), c, (List.concat []))
-    let () = declaration := ((!declaration) @ [elpi_binop])
+    type binop = Why3.Term.binop =
+      | Tand
+      | Tor
+      | Timplies
+      | Tiff
+    [@@deriving elpi {declaration}]
+    [@@elpi.type_code "binop"]
+    [@@elpi.pp fun fmt -> function
+      | Tand -> Format.fprintf fmt "/\\"
+      | Tor -> Format.fprintf fmt "\\/"
+      | Timplies -> Format.fprintf fmt "=>"
+      | Tiff -> Format.fprintf fmt "<=>"]
 end
 
 module Vsym_tags = struct
@@ -201,38 +79,38 @@ let ctx_entry_to_var (c:ctx_for_term) : WTerm.vsymbol =
   | Dctx_vs v -> v
 
 type why_simple_pattern =
-  | Pwild
+  | Pwild of why_simple_ty
   | Pvar of WTerm.vsymbol
-  | Papp of WTerm.lsymbol * why_simple_pattern list
+  | Papp of WTerm.lsymbol * why_simple_pattern list * why_simple_ty
   | Por of why_simple_pattern * why_simple_pattern
   | Pas of why_simple_pattern * WTerm.vsymbol
 [@@deriving elpi {declaration}]
 [@@elpi.type_code "pattern"]
 [@@elpi.type_doc "Pattern constructors for pattern-matching terms."]
 [@@elpi.pp fun fmt -> let rec pp fmt p = match p with
-  | Pwild -> Format.fprintf fmt "_"
+  | Pwild _ -> Format.fprintf fmt "_"
   | Pvar v -> Format.fprintf fmt "%a" WPretty.print_vs v
-  | Papp (ls, args) -> Format.fprintf fmt "%a(%a)" WPretty.print_ls ls (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") pp) args
+  | Papp (ls, args, _) -> Format.fprintf fmt "%a(%a)" WPretty.print_ls ls (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") pp) args
   | Por (p1, p2) -> Format.fprintf fmt "%a | %a" pp p1 pp p2
   | Pas (p, v) -> Format.fprintf fmt "%a as %a" pp p WPretty.print_vs v
   in pp fmt]
 
 let rec pattern_to_simple_pattern (p : WTerm.pattern) : why_simple_pattern =
   match p.pat_node with
-  | Pwild -> Pwild
+  | Pwild -> Pwild (ty_to_why_simple_ty p.pat_ty)
   | Pvar v -> Pvar v
-  | Papp (ls, args) -> Papp (ls, List.map pattern_to_simple_pattern args)
+  | Papp (ls, args) -> Papp (ls, List.map pattern_to_simple_pattern args, ty_to_why_simple_ty p.pat_ty)
   | Por (p1, p2) -> Por (pattern_to_simple_pattern p1, pattern_to_simple_pattern p2)
   | Pas (p, v) -> Pas (pattern_to_simple_pattern p, v)
 
-let rec simple_pattern_to_pattern p ty =
-  let why_ty = why_simple_ty_to_ty ty in
+let rec simple_pattern_to_pattern p =
   match p with
-  | Pwild -> WTerm.pat_wild why_ty
+  | Pwild ty -> WTerm.pat_wild (why_simple_ty_to_ty ty)
   | Pvar v -> WTerm.pat_var v
-  | Papp (ls, args) -> WTerm.pat_app ls (List.map (fun x -> simple_pattern_to_pattern x ty) args) why_ty
-  | Por (p1, p2) -> WTerm.pat_or (simple_pattern_to_pattern p1 ty) (simple_pattern_to_pattern p2 ty)
-  | Pas (p, v) -> WTerm.pat_as (simple_pattern_to_pattern p ty) v
+  | Papp (ls, args, ty) ->
+    WTerm.pat_app ls (List.map simple_pattern_to_pattern args) (why_simple_ty_to_ty ty)
+  | Por (p1, p2) -> WTerm.pat_or (simple_pattern_to_pattern p1) (simple_pattern_to_pattern p2)
+  | Pas (p, v) -> WTerm.pat_as (simple_pattern_to_pattern p) v
 
 type why_simple_term =
   | Tvar of WTerm.vsymbol [@elpi.var ctx_for_term]
@@ -250,7 +128,6 @@ type why_simple_term =
 [@@deriving elpi {declaration; context=[ctx_for_term];}]
 [@@elpi.type_code "term"]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<term>"]
-
 let rec pp_simple_term = 
   fun fmt t -> match t with
   | Tvar v -> Format.fprintf fmt "(%a:%a)" WPretty.print_vs v WPretty.print_ty v.vs_ty
@@ -282,7 +159,8 @@ let rec term_to_simple_term (t : WTerm.term) : why_simple_term =
       match branches with
       | [] -> assert false
       | b::_ -> let (p,_) = (WTerm.t_open_branch b) in ty_to_why_simple_ty p.pat_ty in
-    let branches = List.map (fun t -> term_branch_to_simple_term t) branches in Tcase (term_to_simple_term t, first_pattern_type, branches)
+    let branches = List.map term_branch_to_simple_term branches in
+    Tcase (term_to_simple_term t, first_pattern_type, branches)
   | Teps t -> let (v, t) =  WTerm.t_open_bound t in Teps (v, term_to_simple_term t)
   | Tquant (q, t) ->
     (match WTerm.t_open_quant t with
@@ -324,7 +202,7 @@ let rec simple_term_to_term (st : why_simple_term) : WTerm.term =
     in
     let simple_term_to_term_branch (p, t) =
       let t = strip_branch_binders t in
-      let p = simple_pattern_to_pattern p ty in
+      let p = simple_pattern_to_pattern p in
       let t = simple_term_to_term t in
       WTerm.t_close_branch p t
     in
