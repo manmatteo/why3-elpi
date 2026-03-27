@@ -727,7 +727,7 @@ let conversion_of (module B : Ast_builder.S)  ty = let open B in
    | [%type: string] -> [%expr Elpi_api_compat.BuiltInContextualData.string]
    | [%type: int]    -> [%expr Elpi_api_compat.BuiltInContextualData.int]
    | [%type: float]  -> [%expr Elpi_api_compat.BuiltInContextualData.float]
-   | [%type: bool]   -> [%expr Elpi_api_compat.PPX.bool]
+  | [%type: bool]   -> [%expr Elpi.Builtin.bool]
    | [%type: char]   -> [%expr Elpi_api_compat.PPX.char]
    | [%type: [%t? typ] list]          -> [%expr Elpi_api_compat.BuiltInContextualData.list [%e aux typ ]]
    | [%type: [%t? typ] option]        -> [%expr Elpi_api_compat.PPX.option [%e aux typ ]]
@@ -753,11 +753,11 @@ let rec find_embed_of (module B : Ast_builder.S) current_mutrec_block  ty = let 
              (fun ~depth h c s l ->
                let s, l, eg = Elpi.API.Utils.map_acc (embed ~depth h c) s l in
                s, Elpi.API.Utils.list_to_lp_list l, eg)) ]
-   | [%type: [%t? typ] option]        -> [%expr Elpi_api_compat.PPX.embed_option [%e conversion_of (module B) typ ]]
-   | [%type: [%t? typ1] * [%t? typ2]] -> [%expr Elpi_api_compat.PPX.embed_pair [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3]] -> [%expr Elpi_api_compat.PPX.embed_triple [%e conversion_of (module B) typ1 ]  [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4]] -> [%expr Elpi_api_compat.PPX.embed_quadruple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4] * [%t? typ5]] -> [%expr Elpi_api_compat.PPX.embed_quintuple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ] [%e conversion_of (module B) typ5 ]]
+  | [%type: [%t? typ] option]        -> [%expr (Elpi_api_compat.PPX.option [%e conversion_of (module B) typ ]).Elpi.API.ContextualConversion.embed]
+  | [%type: [%t? typ1] * [%t? typ2]] -> [%expr (Elpi_api_compat.PPX.pair [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ]).Elpi.API.ContextualConversion.embed]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3]] -> [%expr (Elpi_api_compat.PPX.triple [%e conversion_of (module B) typ1 ]  [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ]).Elpi.API.ContextualConversion.embed]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4]] -> [%expr (Elpi_api_compat.PPX.quadruple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ]).Elpi.API.ContextualConversion.embed]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4] * [%t? typ5]] -> [%expr (Elpi_api_compat.PPX.quintuple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ] [%e conversion_of (module B) typ5 ]).Elpi.API.ContextualConversion.embed]
   | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident id; _ }, params); _ }
     when List.mem id current_mutrec_block || is_parameter id ->
       eapply (evar (elpi_embed_name id)) (List.map (find_embed_of (module B) current_mutrec_block) params)
@@ -774,11 +774,11 @@ let rec find_readback_of (module B : Ast_builder.S) current_mutrec_block  ty = l
    | [%type: [%t? typ] list]          ->
      [%expr (let readback = ([%e conversion_of (module B) typ]).Elpi.API.ContextualConversion.readback in
              (fun ~depth h c s t -> Elpi.API.Utils.map_acc (readback ~depth h c) s (Elpi.API.Utils.lp_list_to_list ~depth t)))]
-   | [%type: [%t? typ] option]        -> [%expr Elpi_api_compat.PPX.readback_option [%e conversion_of (module B) typ ]]
-   | [%type: [%t? typ1] * [%t? typ2]] -> [%expr Elpi_api_compat.PPX.readback_pair [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3]] -> [%expr Elpi_api_compat.PPX.readback_triple [%e conversion_of (module B) typ1 ]  [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4]] -> [%expr Elpi_api_compat.PPX.readback_quadruple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ]]
-   | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4] * [%t? typ5]] -> [%expr Elpi_api_compat.PPX.readback_quintuple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ] [%e conversion_of (module B) typ5 ]]
+  | [%type: [%t? typ] option]        -> [%expr (Elpi_api_compat.PPX.option [%e conversion_of (module B) typ ]).Elpi.API.ContextualConversion.readback]
+  | [%type: [%t? typ1] * [%t? typ2]] -> [%expr (Elpi_api_compat.PPX.pair [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ]).Elpi.API.ContextualConversion.readback]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3]] -> [%expr (Elpi_api_compat.PPX.triple [%e conversion_of (module B) typ1 ]  [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ]).Elpi.API.ContextualConversion.readback]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4]] -> [%expr (Elpi_api_compat.PPX.quadruple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ]).Elpi.API.ContextualConversion.readback]
+  | [%type: [%t? typ1] * [%t? typ2] * [%t? typ3] * [%t? typ4] * [%t? typ5]] -> [%expr (Elpi_api_compat.PPX.quintuple [%e conversion_of (module B) typ1 ] [%e conversion_of (module B) typ2 ] [%e conversion_of (module B) typ3 ] [%e conversion_of (module B) typ4 ] [%e conversion_of (module B) typ5 ]).Elpi.API.ContextualConversion.readback]
   | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident id; _ }, params); _ }
     when List.mem id current_mutrec_block || is_parameter id ->
       eapply (evar (elpi_readback_name id)) (List.map (find_readback_of (module B) current_mutrec_block) params)
