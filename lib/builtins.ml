@@ -7,65 +7,20 @@ let in_ctx_for_ty = Ty.in_ctx_for_why_simple_ty
 let in_ctx_for_term = Term.in_ctx_for_why_simple_term
 let pp_ctx_for_term = Term.pp_ctx_for_term
 
-let option_map_decl_data d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Ddata ds -> Some ds
-      | _ -> None
+let option_map_decl_body d g =
+      decl_body_of_gref d g
 
-let option_map_decl_ind d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dind ds -> Some ds
-      | _ -> None
+let attrs_of_sattr attrs =
+      Why3.Ident.Sattr.elements attrs
 
-let option_map_decl_logic d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dlogic ds -> Some ds
-      | _ -> None
+let attrs_of_ident id =
+      attrs_of_sattr id.Why3.Ident.id_attrs
 
-let option_map_decl_const d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dparam ls -> Some ls
-      | _ -> None
-
-let option_map_decl_typ d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dtype ts -> Some ts
-      | _ -> None
-
-let option_map_decl_prop_pr d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dprop (_, pr, _) -> Some pr
-      | _ -> None
-
-let option_map_decl_prop_tm d =
-      match d.Why3.Decl.d_node with
-      | Why3.Decl.Dprop (_, _, tm) -> Some tm
-      | _ -> None
-
-let option_map_tdecl_decl td =
-      match td.Why3.Theory.td_node with
-      | Why3.Theory.Decl d -> Some d
-      | _ -> None
-
-let option_map_tdecl_use td =
-      match td.Why3.Theory.td_node with
-      | Why3.Theory.Use th -> Some th
-      | _ -> None
-
-let option_map_tdecl_meta td =
-      match td.Why3.Theory.td_node with
-      | Why3.Theory.Meta (m, _) -> Some m
-      | _ -> None
-
-let option_map_tdecl_meta_args td =
-      match td.Why3.Theory.td_node with
-      | Why3.Theory.Meta (_, args) -> Some args
-      | _ -> None
-
-let option_map_tdecl_clone td =
-      match td.Why3.Theory.td_node with
-      | Why3.Theory.Clone (th, _) -> Some th
-      | _ -> None
+let sattr_of_attrs attrs =
+      List.fold_left
+            (fun sattr attr -> Why3.Ident.Sattr.add attr sattr)
+            Why3.Ident.Sattr.empty
+            attrs
 
 let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
@@ -73,6 +28,81 @@ let why3_builtin_declarations =
   let open Elpi.API.BuiltInPredicate in
   let open Elpi.API.BuiltInPredicate.Notation in
   [MLCode
+      ( Pred ( "why3.mk-var",
+            CIn  (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            CIn  (ty, "T",
+            COut (vsymbol, "V",
+            Read (in_ctx_for_ty, "Create a fresh Why3 variable symbol from a printed name and type.")))),
+            fun name ty _ ~depth:_ _ctx _ _ ->
+              !: (Why3.Term.create_vsymbol (Why3.Ident.id_fresh name) ty)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.mk-ls",
+            CIn  (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            CIn  ((Elpi_api_compat.BuiltInContextualData.list ty), "Args",
+            CIn  (ty, "Result",
+            COut (lsymbol, "Ls",
+            Read (in_ctx_for_ty, "Create a fresh Why3 function symbol from a printed name, argument types, and result type."))))),
+            fun name args result _ ~depth:_ _ctx _ _ ->
+              !: (Why3.Term.create_fsymbol (Why3.Ident.id_fresh name) args result)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.var-name",
+            CIn  (vsymbol, "V",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            Read (in_ctx_for_term, "Project the printed name of a variable symbol."))),
+            fun var _ ~depth:_ _ctx _ _ -> !: (var.vs_name.Why3.Ident.id_string)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.var-attrs",
+            CIn  (vsymbol, "V",
+            COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
+            Read (in_ctx_for_term, "Project the attributes attached to a variable symbol."))),
+            fun var _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident var.vs_name)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.prsymbol-name",
+            CIn  (prsymbol, "Pr",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            Read (in_ctx_for_term, "Project the printed name of a proposition symbol."))),
+            fun pr _ ~depth:_ _ctx _ _ -> !: (pr.pr_name.Why3.Ident.id_string)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.prsymbol-attrs",
+            CIn  (prsymbol, "Pr",
+            COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
+            Read (in_ctx_for_term, "Project the attributes attached to a proposition symbol."))),
+            fun pr _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident pr.pr_name)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.ls-name",
+            CIn  (lsymbol, "Ls",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            Read (in_ctx_for_term, "Project the printed name of a logic symbol."))),
+            fun ls _ ~depth:_ _ctx _ _ -> !: (ls.ls_name.Why3.Ident.id_string)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.lsymbol-attrs",
+            CIn  (lsymbol, "Ls",
+            COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
+            Read (in_ctx_for_term, "Project the attributes attached to a logic symbol."))),
+            fun ls _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident ls.ls_name)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.tysymbol-name",
+            CIn  (tysymbol, "Ts",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            Read (in_ctx_for_ty, "Project the printed name of a type symbol."))),
+            fun ts _ ~depth:_ _ctx _ _ -> !: (ts.ts_name.Why3.Ident.id_string)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.tysymbol-attrs",
+            CIn  (tysymbol, "Ts",
+            COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
+            Read (in_ctx_for_term, "Project the attributes attached to a type symbol."))),
+            fun ts _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident ts.ts_name)),
+        DocAbove );
+  MLCode
       ( Pred ( "why3.var-type",
             CIn  (vsymbol, "V",
             COut (ty, "T",
@@ -87,202 +117,54 @@ let why3_builtin_declarations =
             fun ls _ ~depth:_ _ctx _ _ -> ?: (ls.ls_value)),
         DocAbove );
   MLCode
-  ( Pred ( "why3.var-name",
-            CIn  (vsymbol, "V",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_term, "Get the identifier string of a variable symbol."))),
-            fun v _ ~depth:_ _ctx _ _ -> !: ((v.vs_name).id_string)),
+  ( Pred ( "why3.attr",
+            CIn  (Elpi_api_compat.BuiltInContextualData.string, "S",
+            COut (attribute, "Attr",
+            Read (in_ctx_for_term, "Create a Why3 attribute from its string representation."))),
+            fun name _ ~depth:_ _ctx _ _ -> !: (Why3.Ident.create_attribute name)),
         DocAbove );
   MLCode
-  ( Pred ( "why3.ls-name",
-            CIn  (lsymbol, "L",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_term, "Get the identifier string of a logic symbol."))),
-            fun ls _ ~depth:_ _ctx _ _ -> !: ((ls.ls_name).id_string)),
+  ( Pred ( "why3.attr-string",
+            CIn  (attribute, "Attr",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
+            Read (in_ctx_for_term, "Project the string representation of a Why3 attribute."))),
+                  fun attr _ ~depth:_ _ctx _ _ -> !: (attr.Why3.Ident.attr_string)),
         DocAbove );
-  MLCode
-  ( Pred ( "why3.tysymbol-name",
-            CIn  (tysymbol, "Ts",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_ty, "Get the identifier string of a type symbol."))),
-            fun ts _ ~depth:_ _ctx _ _ -> !: ((ts.ts_name).id_string)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.prsymbol-name",
-            CIn  (prsymbol, "Pr",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_term, "Get the identifier string of a proposition symbol."))),
-            fun pr _ ~depth:_ _ctx _ _ -> !: ((pr.pr_name).id_string)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.theory-name",
-            CIn  (theory, "Th",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_term, "Get the identifier string of a theory."))),
-            fun th _ ~depth:_ _ctx _ _ -> !: ((th.th_name).id_string)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.meta-name",
-            CIn  (meta, "M",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "N",
-            Read (in_ctx_for_term, "Get the name string of a meta declaration."))),
-            fun m _ ~depth:_ _ctx _ _ -> !: (m.meta_name)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-kind",
+      MLCode
+      ( Pred ( "why3.decl-kind",
             CIn  (decl, "D",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "K",
-            Read (in_ctx_for_term, "Classify a declaration: goal|lemma|axiom|typ|data|dind|declls|const."))),
+            COut (decl_kind, "K",
+            Read (in_ctx_for_term, "Classify a declaration."))),
             fun d _ ~depth:_ _ctx _ _ -> !:
                                           (match d.Why3.Decl.d_node with
-               | Why3.Decl.Dprop (Why3.Decl.Pgoal, _, _) -> "goal"
-               | Why3.Decl.Dprop (Why3.Decl.Plemma, _, _) -> "lemma"
-               | Why3.Decl.Dprop (Why3.Decl.Paxiom, _, _) -> "axiom"
-               | Why3.Decl.Dtype _ -> "typ"
-               | Why3.Decl.Ddata _ -> "data"
-               | Why3.Decl.Dind _ -> "dind"
-               | Why3.Decl.Dlogic _ -> "declls"
-               | Why3.Decl.Dparam _ -> "const")),
+               | Why3.Decl.Dprop _ -> Decl_prop
+               | Why3.Decl.Dtype _ -> Decl_type
+               | Why3.Decl.Ddata _ -> Decl_data
+               | Why3.Decl.Dind _ -> Decl_ind
+               | Why3.Decl.Dlogic _ -> Decl_logic
+               | Why3.Decl.Dparam _ -> Decl_param)),
         DocAbove );
   MLCode
-  ( Pred ( "why3.decl-prop-kind",
-            CIn  (decl, "D",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "K",
-            Read (in_ctx_for_term, "Get proposition kind for a proposition declaration: goal|lemma|axiom."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?:
-                                          (match d.Why3.Decl.d_node with
-               | Why3.Decl.Dprop (Why3.Decl.Pgoal, _, _) -> Some "goal"
-               | Why3.Decl.Dprop (Why3.Decl.Plemma, _, _) -> Some "lemma"
-               | Why3.Decl.Dprop (Why3.Decl.Paxiom, _, _) -> Some "axiom"
-               | _ -> None)),
-        DocAbove );
+  ( Pred ( "why3.decl-defines",
+                  CIn  (decl, "D",
+                  COut ((Elpi_api_compat.BuiltInContextualData.list gref), "Refs",
+                  Read (in_ctx_for_term, "Enumerate the global references defined by a declaration."))),
+                  fun d _ ~depth:_ _ctx _ _ -> !: (decl_defined_grefs d)),
+            DocAbove );
   MLCode
-  ( Pred ( "why3.decl-prop-symbol",
-            CIn  (decl, "D",
-            COut (prsymbol, "Pr",
-            Read (in_ctx_for_term, "Project proposition symbol from a proposition declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_prop_pr d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-prop-term",
-            CIn  (decl, "D",
-            COut (term, "T",
-            Read (in_ctx_for_term, "Project proposition term from a proposition declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_prop_tm d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-typ",
-            CIn  (decl, "D",
-            COut (tysymbol, "Ts",
-            Read (in_ctx_for_term, "Project type symbol from a type declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_typ d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-const",
-            CIn  (decl, "D",
-            COut (lsymbol, "L",
-            Read (in_ctx_for_term, "Project logic symbol from a constant declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_const d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-data",
-            CIn  (decl, "D",
-            COut ((Elpi_api_compat.BuiltInContextualData.list data_decl), "DD",
-            Read (in_ctx_for_term, "Project data declaration payload from a data declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_data d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-ind",
-            CIn  (decl, "D",
-            COut (ind_list, "ID",
-            Read (in_ctx_for_term, "Project inductive declaration payload from an inductive declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_ind d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.decl-logic",
-            CIn  (decl, "D",
-            COut ((Elpi_api_compat.BuiltInContextualData.list logic_decl), "LD",
-            Read (in_ctx_for_term, "Project logic declaration payload from a logic declaration."))),
-            fun d _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_logic d)),
-        DocAbove );
+  ( Pred ( "why3.decl-body",
+                  CIn  (decl, "D",
+                  CIn  (gref, "Ref",
+                  COut (decl_body, "Body",
+                  Read (in_ctx_for_term, "Project the opened body attached to a declaration/reference pair. Succeeds for proposition declarations and defined logic symbols.")))) ,
+                  fun d g _ ~depth:_ _ctx _ _ -> ?: (option_map_decl_body d g)),
+            DocAbove );
   MLCode
   ( Pred ( "why3.pp-decl",
             CIn  (decl, "D",
             COut (Elpi_api_compat.BuiltInContextualData.string, "S",
             Read (in_ctx_for_term, "Pretty-print a declaration."))),
                   fun d _ ~depth:_ _ctx _ _ -> !: (Format.asprintf "%a" Why3.Pretty.print_decl d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.pp-logic-decl",
-            CIn  (logic_decl, "LD",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
-            Read (in_ctx_for_term, "Pretty-print a logic declaration payload."))),
-                  fun ld _ ~depth:_ _ctx _ _ -> !: (Format.asprintf "%a" Why3.Pretty.print_logic_decl ld)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.pp-data-decl",
-            CIn  (data_decl, "DD",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
-            Read (in_ctx_for_term, "Pretty-print a data declaration payload."))),
-            fun (ts, _ as dd) _ ~depth:_ _ctx _ _ ->
-              let _ = dd in
-                                          !: (Format.asprintf "data %a" Why3.Pretty.print_ts ts)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.pp-ind-list",
-            CIn  (ind_list, "ID",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
-            Read (in_ctx_for_term, "Pretty-print an inductive declaration payload."))),
-            fun (sgn, decls) _ ~depth:_ _ctx _ _ ->
-                                          let d = Why3.Decl.create_ind_decl sgn decls in
-                                          !: (Format.asprintf "%a" Why3.Pretty.print_decl d)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-kind",
-            CIn  (tdecl, "TD",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "K",
-            Read (in_ctx_for_term, "Classify a task declaration: decl|use|meta|clone."))),
-            fun td _ ~depth:_ _ctx _ _ -> !:
-                                          (match td.Why3.Theory.td_node with
-               | Why3.Theory.Decl _ -> "decl"
-               | Why3.Theory.Use _ -> "use"
-               | Why3.Theory.Meta _ -> "meta"
-               | Why3.Theory.Clone _ -> "clone")),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-decl",
-            CIn  (tdecl, "TD",
-            COut (decl, "D",
-            Read (in_ctx_for_term, "Project declaration payload from a task declaration node of kind decl."))),
-            fun td _ ~depth:_ _ctx _ _ -> ?: (option_map_tdecl_decl td)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-use",
-            CIn  (tdecl, "TD",
-            COut (theory, "Th",
-            Read (in_ctx_for_term, "Project theory payload from a task declaration node of kind use."))),
-            fun td _ ~depth:_ _ctx _ _ -> ?: (option_map_tdecl_use td)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-meta",
-            CIn  (tdecl, "TD",
-            COut (meta, "M",
-            Read (in_ctx_for_term, "Project meta payload from a task declaration node of kind meta."))),
-            fun td _ ~depth:_ _ctx _ _ -> ?: (option_map_tdecl_meta td)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-meta-args",
-            CIn  (tdecl, "TD",
-            COut ((Elpi_api_compat.BuiltInContextualData.list meta_arg), "Args",
-            Read (in_ctx_for_term, "Project meta-argument payload from a task declaration node of kind meta."))),
-            fun td _ ~depth:_ _ctx _ _ -> ?: (option_map_tdecl_meta_args td)),
-        DocAbove );
-  MLCode
-  ( Pred ( "why3.tdecl-clone",
-            CIn  (tdecl, "TD",
-            COut (theory, "Th",
-            Read (in_ctx_for_term, "Project cloned theory payload from a task declaration node of kind clone."))),
-            fun td _ ~depth:_ _ctx _ _ -> ?: (option_map_tdecl_clone td)),
         DocAbove );
   MLCode
   ( Pred ( "why3.pp-tdecl",
@@ -313,13 +195,99 @@ let why3_builtin_declarations =
                   fun a _ ~depth:_ _ctx _ _ -> !: (Format.asprintf "%a" Why3.Pretty.print_meta_arg a)),
         DocAbove );
   MLCode
-  ( Pred ("why3.pp-term",
-            CIn  (term, "T",
-            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
-            Read (in_ctx_for_term, "Convert a term to string using Why3's pretty printer"))),
-            fun t _ ~depth:_ ctx _ _ -> !: 
-             (Format.asprintf "@[<hov>%a@ |-@ %a@]@\n%!"
-      (Elpi_api_compat.pp_ctx_field pp_ctx_for_term) ctx#ctx_for_term
-       term.pp t)),
+  ( Pred ( "why3.pp-term",
+           CIn  (term, "T",
+           COut (Elpi_api_compat.BuiltInContextualData.string, "S",
+           Read (in_ctx_for_term, "Convert a term to string using Why3's pretty printer"))),
+           fun t _ ~depth:_ ctx _ _ -> !:
+            (Format.asprintf "%a@\n%!" term.pp t)),
         DocAbove );
+  MLCode
+  ( Pred ( "why3.lsymbol-full-type",
+            CIn  (lsymbol, "Ls",
+            COut (ty, "Ty",
+            Read (in_ctx_for_ty, "Get the full arrow type of a logic symbol: arg1 -> ... -> argN -> result. Fails for predicates (no value type)."))),
+            fun ls _ ~depth:_ _ctx _ _ ->
+              match ls.Why3.Term.ls_value with
+              | None -> raise Elpi.API.BuiltInPredicate.No_clause
+              | Some ret ->
+                let full = List.fold_right Why3.Ty.ty_func ls.Why3.Term.ls_args ret in
+                !: full),
+        DocAbove );
+  MLCode
+  ( Pred ( "why3.decl-data-constructors",
+            CIn  (decl, "D",
+            COut ((Elpi_api_compat.BuiltInContextualData.list
+                    (Elpi_api_compat.PPX.pair lsymbol
+                      (Elpi_api_compat.BuiltInContextualData.list
+                        (Elpi_api_compat.PPX.option lsymbol)))),
+                  "Ctors",
+            Read (in_ctx_for_ty,
+              "If D is a Ddata declaration, return the list of (constructor, projections) pairs. Each projection list entry is none if the field has no projection function, or some Proj otherwise. Fails if D is not a Ddata declaration."))),
+            fun d _ ~depth:_ _ctx _ _ ->
+              match d.Why3.Decl.d_node with
+              | Why3.Decl.Ddata ddecls ->
+                let ctors = List.concat_map (fun (_, ctors) -> ctors) ddecls in
+                !: ctors
+              | _ -> raise Elpi.API.BuiltInPredicate.No_clause),
+        DocAbove );
+  LPDoc {|Convenience macros for working with the focused-goal API.|};
+  LPCode {|
+% [w3-ls-of-var! V Ls] Allocate a fresh lsymbol whose name and type are taken
+% from variable symbol V. Shorthand for the three-step
+%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls
+% preamble needed before introducing a local constant.
+macro @w3-ls-of-var! V Ls :-
+  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls.
+|};
+  LPCode {|
+% [@pi-local-param! Ls GoalOut Next F] Build a local-symbol node for the
+% uninterpreted constant Ls, bind a fresh ELPI nominal `self` for it in
+% ctx-ls, and run F self.  GoalOut is unified with the focused-goal wrapper
+% and Next is the continuation binder.  Mirrors the coq-elpi @pi-decl macro.
+%
+% Typical usage for opening a forall as a local parameter:
+%
+%   inspect GoalPr (tquant tforall V Bnd) GoalOut :-
+%     @w3-ls-of-var! V Ls,
+%     @pi-local-param! Ls GoalOut Next (self\
+%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next self)).
+macro @pi-local-param! Ls GoalOut Next F :-
+  GoalOut = local-symbol Ls (_\ symbol-param) Next,
+  pi self\ ctx-ls self Ls => F self.
+|};
+      LPCode {|
+% [@pi-local-param-goal! Ls GoalOut F] Same as @pi-local-param!, but hides
+% the continuation binder from the caller. F receives InnerGoal: the
+% focused-goal hole to fill under the local-symbol wrapper.
+%
+% Note: `self` is a context token for ctx-ls lookup, not a term to embed.
+% To open a binder body, keep using (tapp Ls [] none).
+%
+% Typical usage:
+%
+%   @pi-local-param-goal! Ls GoalOut (InnerGoal\
+%     inspect GoalPr (Bnd (tapp Ls [] none)) InnerGoal).
+macro @pi-local-param-goal! Ls GoalOut F :-
+      GoalOut = local-symbol Ls (_\ symbol-param) (self\ Inner self),
+      pi self\ ctx-ls self Ls => F (Inner self).
+|};
+      LPCode {|
+% [@open-forall-local-param! V Bnd GoalOut F] Open a forall binder as a
+% local-symbol parameter in one step. F receives:
+% - Body: the binder body opened as Bnd (tapp Ls [] none)
+% - InnerGoal: the focused-goal hole under the local-symbol wrapper.
+%
+% If you also need access to the freshly allocated lsymbol itself, use
+% @w3-ls-of-var! followed by @pi-local-param-goal! directly.
+%
+% Typical usage:
+%
+%   @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
+%     inspect GoalPr Body InnerGoal).
+macro @open-forall-local-param! V Bnd GoalOut F :-
+  @w3-ls-of-var! V Ls,
+  @pi-local-param-goal! Ls GoalOut (InnerGoal\
+    F (Bnd (tapp Ls [] none)) InnerGoal).
+|};
   ]

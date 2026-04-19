@@ -5,6 +5,7 @@ open Task
 open Env
 module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
 module Ctx_for_ctx_for_term = Term.Ctx_for_ctx_for_term
+module Ctx_for_ctx_for_lsymbol = Term.Ctx_for_ctx_for_lsymbol
 
 (* Accumulate declarations from Elpi PPX here *)
 let declaration : Elpi.API.BuiltIn.declaration list =
@@ -14,21 +15,32 @@ let declaration : Elpi.API.BuiltIn.declaration list =
 let why3_builtin_declarations = Builtins.why3_builtin_declarations
 
 (* Add a declaration to the list *)
+let attribute = Term.attribute
 let term = Term.term
 let vsymbol = Term.vsymbol
 let lsymbol = Term.lsymbol
 let context_made_of_ctx_for_term = Term.context_made_of_ctx_for_term
+let context_made_of_ctx_for_lsymbol = Term.context_made_of_ctx_for_lsymbol
 type ctx_for_term = Term.ctx_for_term
 let ctx_for_term = Term.ctx_for_term
+type ctx_for_lsymbol = Term.ctx_for_lsymbol
+let ctx_for_lsymbol = Term.ctx_for_lsymbol
+type focused_goal = Term.focused_goal
+let focused_goal = Term.focused_goal
 let prsymbol = Decl.prsymbol
 let decl = Decl.decl
+let tdecl = Theory.tdecl
 let task = Task.task
+let focused_task = Task.focused_task
 let env = Task.env
 let ty = Ty.ty
 
 let in_ctx_for_term = Term.in_ctx_for_why_simple_term
 let pp_ctx_for_term = Term.pp_ctx_for_term
 let in_ctx_for_ty = Ty.in_ctx_for_why_simple_ty
+let goal_decl_to_focused_goal = Term.goal_decl_to_focused_goal
+let focused_goal_to_tdecls = Term.focused_goal_to_tdecls
+let split_focused_goal = Task.split_focused_goal
 
 let document builtins =
   let w3lp_builtins = API.BuiltIn.declare ~file_name:"w3lp.elpi" builtins
