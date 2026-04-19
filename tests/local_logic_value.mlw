@@ -1,0 +1,6 @@
+use int.Int
+
+function apply_int (g:int -> int) (x:int) : int = g x
+
+goal local_logic_value :
+  forall x:int. exists f: int -> int. apply_int f x = x

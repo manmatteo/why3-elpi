@@ -1,0 +1,9 @@
+theory Task
+
+type myrange = <range -5 5>
+
+constant a : myrange = (0:myrange)
+
+goal toto: true
+
+end

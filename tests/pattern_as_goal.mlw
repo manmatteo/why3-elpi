@@ -1,0 +1,14 @@
+theory PatternAsGoal
+
+  use int.Int
+  use list.List
+
+  constant xs : list int
+
+  goal rebuild_case_as :
+    match xs with
+    | (Cons x tl as whole) -> whole = whole /\ tl = tl /\ x = x
+    | Nil -> true
+    end
+
+end

@@ -41,7 +41,7 @@ function k int int c : int
 constant zero : int = 0
 constant bao : int = zz 0 1 2
 axiom oe: 0 = zz 0 1 2
-goal one: forall u v w. ff u v w -> (k 0 1 w = 0)
+goal one: forall u v. forall w. ff u v w -> (k 0 1 w = 0)
 predicate p
 predicate q
 goal two: p -> q

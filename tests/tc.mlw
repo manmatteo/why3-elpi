@@ -20,5 +20,5 @@ type group [@class] 'a = {monoid : monoid 'a; inv : 'a -> 'a}
 (* axiom group_axiom : forall i. forall a. i.monoid.plus a (i.inv a) = i.monoid.null *)
 constant int_group [@instance] : group int = {monoid = int_monoid ; inv = (fun a -> -a)}
 
-goal test_tc2 : exists i. exists j. exists k. exists l.
+goal test_tc2 : exists i, j, k, l.
                 (i.equ (j.plus (k.inv 1) 1) l.null) 

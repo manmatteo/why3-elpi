@@ -1,0 +1,142 @@
+use list.List
+use int.Int
+
+type eq [@class] 'a = { equ : 'a -> 'a -> bool }
+
+constant bool_eq [@instance] : eq bool = {equ = (fun a b -> (a && b) || (not a && not b))}
+constant int_eq  [@instance] : eq int  = {equ = (fun a b -> a = b)}
+
+let rec function list_rel (cmp: 'a -> 'a -> bool) (xs: list 'a) (ys: list 'a) : bool
+  variant { xs }
+=
+  match xs with
+  | Nil ->
+      match ys with
+      | Nil -> true
+      | Cons _ _ -> false
+      end
+  | Cons x xs1 ->
+      match ys with
+      | Nil -> false
+      | Cons y ys1 -> cmp x y && list_rel cmp xs1 ys1
+      end
+  end
+
+function list_eq [@instance] (e: eq 'a) : eq (list 'a) =
+{equ = fun xs ys -> list_rel e.equ xs ys}
+
+type tree 'a = Leaf | Node (tree 'a) 'a (tree 'a)
+
+let rec function tree_rel (cmp: 'a -> 'a -> bool) (t1: tree 'a) (t2: tree 'a) : bool
+  variant { t1 }
+=
+  match t1 with
+  | Leaf ->
+      match t2 with
+      | Leaf -> true
+      | Node _ _ _ -> false
+      end
+  | Node l1 x1 r1 ->
+      match t2 with
+      | Leaf -> false
+      | Node l2 x2 r2 -> tree_rel cmp l1 l2 && cmp x1 x2 && tree_rel cmp r1 r2
+      end
+  end
+
+function tree_eq [@instance] (e: eq 'a) : eq (tree 'a) =
+{equ = fun t1 t2 -> tree_rel e.equ t1 t2}
+
+function pair_eq [@instance] (f1: eq 'a) (f2: eq 'b) : eq ('a,'b) =
+{equ = fun a b ->
+  let (a1,a2) = a in
+  let (b1,b2) = b in
+  (f1.equ a1 b1) && (f2.equ a2 b2)
+}
+
+goal test_tc_nested_eq :
+  exists i. (equ i) (((1, true), (2, false))) (((1, true), (2, false)))
+
+goal test_tc_list_eq :
+  exists i.
+  (equ i)
+    (Cons (1, true) (Cons (2, false) Nil))
+    (Cons (1, true) (Cons (2, false) Nil))
+
+goal test_tc_tree_eq :
+  exists i.
+  (equ i)
+    (Node Leaf (Cons (1, true) Nil) Leaf)
+    (Node Leaf (Cons (1, true) Nil) Leaf)
+
+type monoid [@class] 'a = {eq: eq 'a; null : 'a; plus : 'a -> 'a -> 'a }
+
+constant bool_monoid [@instance] : monoid bool = {
+  eq = bool_eq;
+  null = true;
+  plus = (fun a b -> a && b)
+}
+
+constant int_monoid [@instance] : monoid int = {
+  eq = int_eq;
+  null = 0;
+  plus = (fun a b -> a + b)
+}
+
+function pair_monoid [@instance] (m1: monoid 'a) (m2: monoid 'b) : monoid ('a,'b) =
+{eq = pair_eq m1.eq m2.eq;
+ null = (m1.null, m2.null);
+ plus = fun a b ->
+  let (a1,a2) = a in
+  let (b1,b2) = b in
+  (m1.plus a1 b1, m2.plus a2 b2)
+}
+
+type group [@class] 'a = {monoid : monoid 'a; inv : 'a -> 'a}
+
+constant int_group [@instance] : group int = {
+  monoid = int_monoid;
+  inv = (fun a -> -a)
+}
+
+function pair_group [@instance] (g1: group 'a) (g2: group 'b) : group ('a,'b) =
+{monoid = pair_monoid g1.monoid g2.monoid;
+ inv = fun a ->
+  let (a1,a2) = a in
+  (g1.inv a1, g2.inv a2)
+}
+
+goal test_tc_nested_monoid :
+  exists m.
+  m.eq.equ
+    (m.plus ((1, true), (2, false)) m.null)
+    ((1, true), (2, false))
+
+goal test_tc_nested_group :
+  exists g.
+  g.monoid.eq.equ
+    (g.monoid.plus (g.inv ((1, 2), 3)) ((1, 2), 3))
+    g.monoid.null
+
+type ord [@class] 'a = {eqo : eq 'a; leq : 'a -> 'a -> bool}
+
+constant bool_ord [@instance] : ord bool = {
+  eqo = bool_eq;
+  leq = (fun a b -> (not a) || b)
+}
+
+constant int_ord [@instance] : ord int = {
+  eqo = int_eq;
+  leq = (fun a b -> a <= b)
+}
+
+function pair_ord [@instance] (o1: ord 'a) (o2: ord 'b) : ord ('a,'b) =
+{eqo = pair_eq o1.eqo o2.eqo;
+ leq = fun a b ->
+  let (a1,a2) = a in
+  let (b1,b2) = b in
+  if o1.eqo.equ a1 b1 then o2.leq a2 b2 else o1.leq a1 b1
+}
+
+goal test_tc_lex_nested :
+  exists o.
+  o.leq ((1, true), (2, false)) ((1, true), (3, true))

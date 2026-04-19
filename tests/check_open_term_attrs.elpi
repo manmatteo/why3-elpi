@@ -1,0 +1,34 @@
+pred descend-app-head i:term, o:term.
+descend-app-head (tattr _ T) Final :- descend-app-head T Final.
+descend-app-head (ttrigger _ T) Final :- descend-app-head T Final.
+descend-app-head (tapp infix_at [Head, _Arg] _Ty) Final :-
+  descend-app-head Head Final.
+descend-app-head T T.
+
+pred outermost-attrs i:term, o:list attribute.
+outermost-attrs (tattr Attrs _) Attrs :- !.
+outermost-attrs (ttrigger _ T) Attrs :- outermost-attrs T Attrs.
+outermost-attrs _ [].
+
+pred check-open-term-attrs i:term.
+check-open-term-attrs (tattr _ T) :- check-open-term-attrs T.
+check-open-term-attrs (ttrigger _ T) :- check-open-term-attrs T.
+check-open-term-attrs (tquant tforall V Bnd) :-
+  (pi x\ ctx-vs x V => (
+    Bnd x = Body,
+    outermost-attrs Body BodyAttrs,
+    why3.attr "body" BodyAttr,
+    std.mem BodyAttrs BodyAttr,
+    check-open-term-attrs Body)).
+check-open-term-attrs (tbinop timplies Premise _Conclusion) :-
+  Premise = tapp _Eq [Head, _Right] _Ty,
+  descend-app-head Head Final,
+  outermost-attrs Final Attrs,
+  why3.attr "test" TestAttr,
+  std.mem Attrs TestAttr.
+
+w3_transform "check-open-term-attrs" Rest (goal-formula GoalPr Goal)
+  [focused-task Rest (goal-formula GoalPr Goal)] :-
+  check-open-term-attrs Goal.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].

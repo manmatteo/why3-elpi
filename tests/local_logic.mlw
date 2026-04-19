@@ -1,0 +1,4 @@
+use int.Int
+
+goal local_logic_demo :
+  forall x:int. exists f: int -> int. f x = x

@@ -1,0 +1,23 @@
+(* Test module for derive_eq_auto: demonstrate type introspection and synthesis *)
+
+type tree 'a = Leaf | Node (tree 'a) 'a (tree 'a)
+
+type color = Red | Green | Blue
+
+(* Define predicates that depend on equality function witnesses *)
+predicate tree_eq_works (eq_f : tree int -> tree int -> bool) =
+  eq_f Leaf Leaf = true
+
+predicate color_eq_works (eq_f : color -> color -> bool) =
+  eq_f Red Red = true
+
+(* Witness goals: ask for an equality function for tree and color *)
+(* The derive-eq-auto transform should synthesize these and introduce them as local symbols *)
+goal test_tree_eq :
+  exists eq_tree. tree_eq_works eq_tree
+
+goal test_color_eq :
+  exists eq_color. color_eq_works eq_color
+
+
+

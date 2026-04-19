@@ -1,0 +1,18 @@
+theory PatternGoal
+
+  use int.Int
+  use list.List
+
+  constant xs : list int
+
+  goal rebuild_case :
+    match xs with
+    | Nil -> true
+    | Cons x tl ->
+        match tl with
+        | Nil -> x = x
+        | Cons y ys -> y = y /\ ys = ys
+        end
+    end
+
+end

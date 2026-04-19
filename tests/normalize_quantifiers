@@ -1,0 +1,25 @@
+#!/usr/bin/env perl
+# Normalize quantifier-formatting differences that are not semantically meaningful:
+#
+# Pass 1 (looping): split comma-grouped binders into one binder per quantifier
+#   e.g.  "forall x, y, z. P"  ->  "forall x. forall y. forall z. P"
+# Pass 2: collapse a quantifier that was line-broken from the previous one
+#   e.g.  "forall x.\n  forall y."  ->  "forall x. forall y."
+#
+# Reads stdin, writes to stdout.  Safe for any input—substitutions are no-ops
+# when neither pattern is present.
+
+use strict;
+use warnings;
+
+local $/;           # slurp whole input as one string (like perl -0777)
+my $text = <STDIN>;
+
+# Pass 1: split "forall/exists x, y." -> "forall/exists x. forall/exists y."
+# Loop until stable (handles three or more comma-separated variables).
+1 while $text =~ s/\b(forall|exists)\s+([^.\n]*?),\s*([^.\n]*?)\.(?=\s)/$1 $2. $1 $3./g;
+
+# Pass 2: join a quantifier that was split onto the next line.
+$text =~ s/\.\s*\n\s*(forall|exists)\b/. $1/g;
+
+print $text;
