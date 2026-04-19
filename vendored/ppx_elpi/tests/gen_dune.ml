@@ -23,7 +23,8 @@ let output_stanzas filename =
 (executable
   (name %s)
   (modules %s)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 |}
   base base base base base base base base base base
