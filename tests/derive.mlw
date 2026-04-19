@@ -1,0 +1,154 @@
+use list.List
+use int.Int
+
+type eq 'a = { equ : 'a -> 'a -> bool }
+
+constant bool_eq : eq bool = {
+  equ = (fun a b -> (a && b) || ((not a) && (not b)))
+}
+
+constant int_eq : eq int = {
+  equ = (fun a b -> a = b)
+}
+
+function pair_eq (f1: eq 'a) (f2: eq 'b) : eq ('a, 'b) = {
+  equ = fun a b ->
+    let (a1, a2) = a in
+    let (b1, b2) = b in
+    (f1.equ a1 b1) && (f2.equ a2 b2)
+}
+
+let rec function list_rel (cmp: 'a -> 'a -> bool) (xs: list 'a) (ys: list 'a) : bool
+  variant { xs }
+= match xs with
+  | Nil ->
+      match ys with
+      | Nil -> true
+      | Cons _ _ -> false
+      end
+  | Cons x xs1 ->
+      match ys with
+      | Nil -> false
+      | Cons y ys1 -> cmp x y && list_rel cmp xs1 ys1
+      end
+  end
+
+function list_eq (e: eq 'a) : eq (list 'a) = {
+  equ = fun xs ys -> list_rel e.equ xs ys
+}
+
+type tree 'a =
+  | Leaf
+  | Node (tree 'a) 'a (tree 'a)
+
+let rec function tree_rel (cmp: 'a -> 'a -> bool) (t1: tree 'a) (t2: tree 'a) : bool
+  variant { t1 }
+= match t1 with
+  | Leaf ->
+      match t2 with
+      | Leaf -> true
+      | Node _ _ _ -> false
+      end
+  | Node l1 x1 r1 ->
+      match t2 with
+      | Leaf -> false
+      | Node l2 x2 r2 -> tree_rel cmp l1 l2 && cmp x1 x2 && tree_rel cmp r1 r2
+      end
+  end
+
+function tree_eq (e: eq 'a) : eq (tree 'a) = {
+  equ = fun t1 t2 -> tree_rel e.equ t1 t2
+}
+
+type maybe 'a =
+  | Nothing
+  | Just 'a
+
+function maybe_eq (e: eq 'a) : eq (maybe 'a) = {
+  equ = fun x y ->
+    match x with
+    | Nothing ->
+        match y with
+        | Nothing -> true
+        | Just _ -> false
+        end
+    | Just vx ->
+        match y with
+        | Nothing -> false
+        | Just vy -> e.equ vx vy
+        end
+    end
+}
+
+goal derive_tree_eq :
+  exists e.
+  e.equ
+    (Node Leaf (Cons (1, true) (Cons (2, false) Nil)) Leaf)
+    (Node Leaf (Cons (1, true) (Cons (2, false) Nil)) Leaf)
+
+goal derive_maybe_tree_eq :
+  exists e.
+  e.equ
+    (Just (Node Leaf (Cons (1, true) Nil) Leaf))
+    (Just (Node Leaf (Cons (1, true) Nil) Leaf))
+
+type ord 'a = { eqo : eq 'a; leq : 'a -> 'a -> bool }
+
+constant bool_ord : ord bool = {
+  eqo = bool_eq;
+  leq = (fun a b -> (not a) || b)
+}
+
+constant int_ord : ord int = {
+  eqo = int_eq;
+  leq = (fun a b -> a <= b)
+}
+
+function pair_ord (o1: ord 'a) (o2: ord 'b) : ord ('a, 'b) = {
+  eqo = pair_eq o1.eqo o2.eqo;
+  leq = fun a b ->
+    let (a1, a2) = a in
+    let (b1, b2) = b in
+    if o1.eqo.equ a1 b1 then o2.leq a2 b2 else o1.leq a1 b1
+}
+
+let rec function list_leq (o: ord 'a) (xs: list 'a) (ys: list 'a) : bool
+  variant { xs }
+= match xs with
+  | Nil -> true
+  | Cons x xs1 ->
+      match ys with
+      | Nil -> false
+      | Cons y ys1 -> if o.eqo.equ x y then list_leq o xs1 ys1 else o.leq x y
+      end
+  end
+
+function list_ord (o: ord 'a) : ord (list 'a) = {
+  eqo = list_eq o.eqo;
+  leq = fun xs ys -> list_leq o xs ys
+}
+
+function maybe_ord (o: ord 'a) : ord (maybe 'a) = {
+  eqo = maybe_eq o.eqo;
+  leq = fun x y ->
+    match x with
+    | Nothing -> true
+    | Just vx ->
+        match y with
+        | Nothing -> false
+        | Just vy -> o.leq vx vy
+        end
+    end
+}
+
+goal derive_list_pair_ord :
+  exists o.
+  o.leq
+    (Cons (1, true) (Cons (2, false) Nil))
+    (Cons (1, true) (Cons (3, false) Nil))
+
+goal derive_maybe_list_ord :
+  exists o.
+  o.leq
+    (Just (Cons (1, true) (Cons (2, false) Nil)))
+    (Just (Cons (1, true) (Cons (3, false) Nil)))

@@ -1,0 +1,7 @@
+theory Task
+
+axiom foo : forall x:int, y:int [y]. true
+goal test1: forall x y:int [x]. forall z: int [y]. x = x
+
+
+end
