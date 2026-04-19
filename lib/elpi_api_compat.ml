@@ -51,10 +51,10 @@ let readback_context ctx ~depth hyps csts state =
   (* Re-initialise the context state component. *)
   let state = ctx.init state in
   List.fold_left (fun (state, gls) hyp ->
+    let raw = RawData.of_hyp hyp in
     match ctx.is_entry_for_nominal hyp with
     | None -> (state, gls)
     | Some nominal ->
-        let raw = RawData.of_hyp hyp in
         let depth_hyp = raw.RawData.hdepth in
         (* Read back the context entry using unit as the "context" (the
            embed/readback for ctx entries never actually use the context
@@ -84,37 +84,33 @@ type ('cls, 'csts) ctx_readback =
 module BuiltInContextualData = struct
 
   (** Lift a plain [Conversion.t] to work in any contextual context. *)
-  let int : (int, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = BuiltInData.int.ty;
-    pp_doc = BuiltInData.int.pp_doc;
-    pp = BuiltInData.int.pp;
-    embed = (fun ~depth _ctx _csts s x -> BuiltInData.int.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> BuiltInData.int.readback ~depth s t);
-  }
+  let int : (int, 'ctx, 'csts) ContextualConversion.t =
+    { ContextualConversion.ty = BuiltInData.int.ty;
+      pp_doc = BuiltInData.int.pp_doc;
+      pp = BuiltInData.int.pp;
+      embed = (fun ~depth _ctx _csts s x -> BuiltInData.int.embed ~depth s x);
+      readback = (fun ~depth _ctx _csts s t -> BuiltInData.int.readback ~depth s t); }
 
-  let float : (float, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = BuiltInData.float.ty;
-    pp_doc = BuiltInData.float.pp_doc;
-    pp = BuiltInData.float.pp;
-    embed = (fun ~depth _ctx _csts s x -> BuiltInData.float.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> BuiltInData.float.readback ~depth s t);
-  }
+  let float : (float, 'ctx, 'csts) ContextualConversion.t =
+    { ContextualConversion.ty = BuiltInData.float.ty;
+      pp_doc = BuiltInData.float.pp_doc;
+      pp = BuiltInData.float.pp;
+      embed = (fun ~depth _ctx _csts s x -> BuiltInData.float.embed ~depth s x);
+      readback = (fun ~depth _ctx _csts s t -> BuiltInData.float.readback ~depth s t); }
 
-  let string : (string, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = BuiltInData.string.ty;
-    pp_doc = BuiltInData.string.pp_doc;
-    pp = BuiltInData.string.pp;
-    embed = (fun ~depth _ctx _csts s x -> BuiltInData.string.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> BuiltInData.string.readback ~depth s t);
-  }
+  let string : (string, 'ctx, 'csts) ContextualConversion.t =
+    { ContextualConversion.ty = BuiltInData.string.ty;
+      pp_doc = BuiltInData.string.pp_doc;
+      pp = BuiltInData.string.pp;
+      embed = (fun ~depth _ctx _csts s x -> BuiltInData.string.embed ~depth s x);
+      readback = (fun ~depth _ctx _csts s t -> BuiltInData.string.readback ~depth s t); }
 
-  let any : (Data.term, 'ctx, 'csts) ContextualConversion.t = {
-    ContextualConversion.ty = BuiltInData.any.ty;
-    pp_doc = BuiltInData.any.pp_doc;
-    pp = BuiltInData.any.pp;
-    embed = (fun ~depth _ctx _csts s x -> BuiltInData.any.embed ~depth s x);
-    readback = (fun ~depth _ctx _csts s t -> BuiltInData.any.readback ~depth s t);
-  }
+  let any : (Data.term, 'ctx, 'csts) ContextualConversion.t =
+    { ContextualConversion.ty = BuiltInData.any.ty;
+      pp_doc = BuiltInData.any.pp_doc;
+      pp = BuiltInData.any.pp;
+      embed = (fun ~depth _ctx _csts s x -> BuiltInData.any.embed ~depth s x);
+      readback = (fun ~depth _ctx _csts s t -> BuiltInData.any.readback ~depth s t); }
 
   (** De Bruijn constants used as "nominals" (bound variables). *)
   let nominal : (RawData.constant, 'ctx, 'csts) ContextualConversion.t =
@@ -134,23 +130,7 @@ module BuiltInContextualData = struct
   (** List over a contextual element type. *)
   let list (elem : ('a, 'ctx, 'csts) ContextualConversion.t)
       : ('a list, 'ctx, 'csts) ContextualConversion.t =
-    let ty = Conversion.TyApp ("list", elem.ContextualConversion.ty, []) in
-    let embed ~depth ctx csts s l =
-      let (s, terms) = List.fold_right (fun x (s, acc) ->
-        let (s, t, _) = elem.ContextualConversion.embed ~depth ctx csts s x in
-        (s, t :: acc)
-      ) l (s, []) in
-      (s, Utils.list_to_lp_list terms, []) in
-    let readback ~depth ctx csts s t =
-      let items = Utils.lp_list_to_list ~depth t in
-      let (s, xs) = List.fold_right (fun it (s, acc) ->
-        let (s, x, _) = elem.ContextualConversion.readback ~depth ctx csts s it in
-        (s, x :: acc)
-      ) items (s, []) in
-      (s, xs, []) in
-    { ContextualConversion.ty; pp_doc = (fun _ () -> ()); pp = (fun fmt l ->
-        Format.pp_print_list ~pp_sep:(fun fmt () -> Format.pp_print_string fmt ", ") elem.ContextualConversion.pp fmt l);
-      embed; readback }
+    ContextualConversion.(!>>) BuiltInData.list elem
 
   (** Placeholder polynomial type parameter (for generated code). *)
   let polyA0 = any
@@ -177,39 +157,6 @@ module PPX = struct
      Setup.init.  We do this once at module load with ParamC placeholders.
      declare_allocated is pure, so we instantiate typed converters lazily
      without any runtime global declarations or identity hacks. *)
-
-  let option_decl (a : ('a, 'h, 'c) ContextualConversion.t)
-      : ('a option, 'h, 'c) AlgebraicData.declaration =
-    let open AlgebraicData in
-    Decl {
-      ty = Conversion.TyApp ("option", a.ContextualConversion.ty, []);
-      doc = "The option type";
-      pp = (fun fmt -> function
-        | None -> Format.pp_print_string fmt "none"
-        | Some x -> Format.fprintf fmt "some(%a)" a.ContextualConversion.pp x);
-      constructors = [
-        K ("none", "none", N, B None,
-          M (fun ~ok ~ko:_ -> function None -> ok | _ -> raise (Conversion.TypeErr(Conversion.TyName "option", 0, RawData.mkConst 0))));
-        K ("some", "some", CA (a, N), B (fun x -> Some x),
-          M (fun ~ok ~ko -> function Some x -> ok x | _ -> ko ()));
-      ]
-    }
-
-  let pair_decl (a : ('a, 'h, 'c) ContextualConversion.t)
-                (b : ('b, 'h, 'c) ContextualConversion.t)
-      : ('a * 'b, 'h, 'c) AlgebraicData.declaration =
-    let open AlgebraicData in
-    Decl {
-      ty = Conversion.TyApp ("pair", a.ContextualConversion.ty,
-                             [b.ContextualConversion.ty]);
-      doc = "Pairs";
-      pp = (fun fmt (x, y) ->
-        Format.fprintf fmt "pr(%a,%a)" a.ContextualConversion.pp x b.ContextualConversion.pp y);
-      constructors = [
-        K ("pr", "pr", CA (a, CA (b, N)), B (fun x y -> (x, y)),
-          M (fun ~ok ~ko:_ -> function (x, y) -> ok x y));
-      ]
-    }
 
   let triple_decl (a : ('a, 'h, 'c) ContextualConversion.t)
                   (b : ('b, 'h, 'c) ContextualConversion.t)
@@ -279,15 +226,6 @@ module PPX = struct
       ]
     }
 
-  let option_alloc : AlgebraicData.allocation =
-    AlgebraicData.allocate_constructors
-      (AlgebraicData.ParamC (fun a -> option_decl a))
-
-  let pair_alloc : AlgebraicData.allocation =
-    AlgebraicData.allocate_constructors
-      (AlgebraicData.ParamC (fun a ->
-         AlgebraicData.ParamC (fun b -> pair_decl a b)))
-
   let triple_alloc : AlgebraicData.allocation =
     AlgebraicData.allocate_constructors
       (AlgebraicData.ParamC (fun a ->
@@ -312,13 +250,13 @@ module PPX = struct
   (** option a *)
   let option (a : ('a, 'h, 'c) ContextualConversion.t)
       : ('a option, 'h, 'c) ContextualConversion.t =
-    AlgebraicData.declare_allocated option_alloc (option_decl a)
+    ContextualConversion.(!>>) Elpi.Builtin.option a
 
   (** pair a b *)
   let pair (a : ('a, 'h, 'c) ContextualConversion.t)
            (b : ('b, 'h, 'c) ContextualConversion.t)
       : ('a * 'b, 'h, 'c) ContextualConversion.t =
-    AlgebraicData.declare_allocated pair_alloc (pair_decl a b)
+    ContextualConversion.(!>>>) Elpi.Builtin.pair a b
 
   (** triple a b cc *)
   let triple (a : ('a, 'h, 'c) ContextualConversion.t)
@@ -374,21 +312,22 @@ module Doc = struct
     Format.fprintf fmt "@[<hov2>kind %s@[<hov> type.@]@]@\n" (show_ty_ast ty)
 
   let constructor fmt ~name ~doc ~ty ~args =
-    let _ = ty in
-    let arg_str = match args with
-      | [] -> ""
-      | _ -> " " ^ String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) args) ^ " ->" in
-    Format.fprintf fmt "@[<hov2>type %s@[<hov>%s %s.@]@]@\n%% %s@\n"
-      name arg_str (show_ty_ast ty) doc
+    let sig_str = match args with
+      | [] -> show_ty_ast ty
+      | _ -> (String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) args)) ^ " -> " ^ (show_ty_ast ty)
+    in
+    Format.fprintf fmt "@[<hov2>external symbol %s :@[<hov> %s.@]@]@\n%% %s@\n"
+      name sig_str doc
 
-  let adt ~doc ~ty:_ ~args fmt () =
+  let adt ~doc ~ty ~args fmt () =
     Format.fprintf fmt "%% %s@\n" doc;
     List.iter (fun (name, adoc, arg_tys) ->
-      let arg_str = match arg_tys with
-        | [] -> ""
-        | _ -> " " ^ String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) arg_tys) ^ " ->" in
-      Format.fprintf fmt "@[<hov2>type %s@[<hov>%s.@]@]@\n%% %s@\n"
-        name arg_str adoc
+      let sig_str = match arg_tys with
+        | [] -> show_ty_ast ty
+        | _ -> (String.concat " -> " (List.map (show_ty_ast ~prec:AppArg) arg_tys)) ^ " -> " ^ (show_ty_ast ty)
+      in
+      Format.fprintf fmt "@[<hov2>external symbol %s :@[<hov> %s.@]@]@\n%% %s@\n"
+        name sig_str adoc
     ) args
 
 end

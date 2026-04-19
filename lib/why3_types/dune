@@ -19,7 +19,7 @@
 )
 (library
  (name term)
- (libraries re ppxlib elpi elpi_api_compat why3 ty common)
+ (libraries re ppxlib elpi elpi.runtime elpi_api_compat why3 ty common)
  (modules term)
  (preprocess (pps ppx_elpi))
  (ppx_runtime_libraries elpi elpi_api_compat)
@@ -40,7 +40,7 @@
 )
 (library
  (name task)
- (libraries re ppxlib elpi elpi_api_compat why3 theory)
+ (libraries re ppxlib elpi elpi_api_compat why3 theory term)
  (modules task)
  (preprocess (pps ppx_elpi))
  (ppx_runtime_libraries elpi elpi_api_compat)

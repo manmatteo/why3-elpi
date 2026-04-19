@@ -16,6 +16,16 @@ type tysymbol = Why3.Ty.tysymbol
 }]
 [@@deriving elpi {declaration}]
 
+let tysymbol_generated = tysymbol
+let tysymbol : 'c 'csts . (tysymbol, 'c, 'csts) Elpi.API.ContextualConversion.t =
+  let pp_doc fmt () =
+    Format.fprintf fmt "%% Embedding of type symbols. Internal information (Ident, arguments) is@\n";
+    Format.fprintf fmt "%% not exposed.@\n";
+    Format.fprintf fmt "kind tysymbol type.@\n@\n";
+    Format.fprintf fmt "external symbol arr : tysymbol.@\n"
+  in
+  { tysymbol_generated with pp_doc }
+
 type tvsymbol = Why3.Ty.tvsymbol
 [@@elpi.opaque {
   name = "tvsymbol";
@@ -28,18 +38,56 @@ type tvsymbol = Why3.Ty.tvsymbol
 }]
 [@@deriving elpi {declaration}]
 
-type why_simple_ty =
-| Tyvar of tvsymbol
-| Tyapp of tysymbol * why_simple_ty list
+module Tvsym_tags = struct
+  type t = tvsymbol
+  let compare = Ty.tv_compare
+  let hash = Hashtbl.hash
+  let equal x y = Ty.tv_compare x y = 0
+  let pp fmt x = Format.fprintf fmt "'%s" x.Why3.Ty.tv_name.Why3.Ident.id_string
+  let show x = x.Why3.Ty.tv_name.Why3.Ident.id_string
+end
+
+type ctx_for_ty =
+| Ctx_tv of (tvsymbol[@elpi.key])
+(* [@elpi.code "ctx_tv" "ty -> tvsymbol -> prop"] *)
+[@@elpi.index (module Tvsym_tags) "ty"]
 [@@deriving elpi {declaration}]
+[@@elpi.pp fun fmt v -> match v with Ctx_tv tv -> Format.fprintf fmt "%a" Why3.Pretty.print_tv tv]
+
+let pp_ctx_for_ty = fun fmt c -> ctx_for_ty.pp fmt (0,c)
+
+type why_simple_ty =
+| Tyvar of tvsymbol [@elpi.var ctx_for_ty]
+| Tyapp of tysymbol * why_simple_ty list
+| Tyabs of tvsymbol * (why_simple_ty [@elpi.binder "ty" ctx_for_ty (fun v -> Ctx_tv v)])
+[@@deriving elpi {declaration; context=[ctx_for_ty]}]
 [@@elpi.type_code "ty"]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<ty>"]
 
-let rec ty_to_why_simple_ty (t : Ty.ty) : why_simple_ty =
-  match t.ty_node with | Tyvar v -> Tyvar v | Tyapp (t, a) -> Tyapp (t, (List.map ty_to_why_simple_ty a))
+let rec mem_tv (v : tvsymbol) = function
+  | [] -> false
+  | x :: xs -> Ty.tv_compare v x = 0 || mem_tv v xs
+
+let rec collect_tvs (acc : tvsymbol list) (t : Ty.ty) : tvsymbol list =
+  match t.ty_node with
+  | Tyvar v -> if mem_tv v acc then acc else acc @ [v]
+  | Tyapp (_, args) -> List.fold_left collect_tvs acc args
+
+let rec ty_to_why_simple_ty_raw (t : Ty.ty) : why_simple_ty =
+  match t.ty_node with
+  | Tyvar v -> Tyvar v
+  | Tyapp (ts, args) -> Tyapp (ts, List.map ty_to_why_simple_ty_raw args)
+
+let ty_to_why_simple_ty (t : Ty.ty) : why_simple_ty =
+  let body = ty_to_why_simple_ty_raw t in
+  let tvs = collect_tvs [] t in
+  List.fold_right (fun v acc -> Tyabs (v, acc)) tvs body
 
 let rec why_simple_ty_to_ty (t : why_simple_ty) : Ty.ty =
-  match t with | Tyvar v -> Ty.ty_var v | Tyapp (t, a) -> Ty.ty_app t (List.map why_simple_ty_to_ty a)
+  match t with
+  | Tyvar v -> Ty.ty_var v
+  | Tyapp (ts, args) -> Ty.ty_app ts (List.map why_simple_ty_to_ty args)
+  | Tyabs (_, body) -> why_simple_ty_to_ty body
 
 let ty : 'c 'csts .  (ty, 'c, 'csts) Elpi.API.ContextualConversion.t =
 let open Elpi.API.ContextualConversion in

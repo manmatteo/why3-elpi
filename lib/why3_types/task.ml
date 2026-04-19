@@ -1,6 +1,23 @@
 open Theory
 let declaration = Theory.declaration
 open Why3.Task
+
+let split_goal_tdecls tdecls =
+  let rec aux acc = function
+    | [] -> None
+    | td :: rest ->
+        match td.Why3.Theory.td_node with
+        | Why3.Theory.Decl d ->
+            begin match Term.goal_decl_to_focused_goal d with
+            | Some goal -> Some (List.rev_append acc rest, goal)
+            | None -> aux (td :: acc) rest
+            end
+        | _ -> aux (td :: acc) rest
+  in
+  aux [] tdecls
+
+let split_focused_goal task = split_goal_tdecls (task_tdecls task)
+
 let embed_task : (task, 'a, 'b) Elpi.API.ContextualConversion.embedding =
   fun ~depth hyp constraints state task ->
   (Elpi_api_compat.BuiltInContextualData.list tdecl).embed ~depth hyp constraints state (task_tdecls task)
@@ -20,6 +37,44 @@ let task : (task, 'a, 'b) Elpi.API.ContextualConversion.t = {
   readback = readback_task;
   embed = embed_task;
 }
+
+let focused_task_c = Elpi.API.RawData.Constants.declare_global_symbol "focused-task"
+
+let embed_focused_task : (task, 'a, 'b) Elpi.API.ContextualConversion.embedding =
+  fun ~depth hyp constraints state task ->
+    match split_focused_goal task with
+    | None -> Elpi.API.Utils.error "focused-task embedding requires a task with a goal"
+    | Some (rest, goal) ->
+        let state, rest_tm, eg1 =
+          (Elpi_api_compat.BuiltInContextualData.list tdecl).embed ~depth hyp constraints state rest in
+        let state, goal_tm, eg2 = Term.focused_goal.embed ~depth hyp constraints state goal in
+        state, Elpi.API.RawData.mkAppGlobalL focused_task_c [rest_tm; goal_tm], eg1 @ eg2
+
+let readback_focused_task : (task, 'a, 'b) Elpi.API.ContextualConversion.readback =
+  fun ~depth hyp constraints state tm ->
+    match Elpi.API.RawData.look ~depth tm with
+    | Elpi.API.RawData.App (hd, rest_tm, [goal_tm]) when hd == focused_task_c ->
+        let state, rest, eg1 =
+          (Elpi_api_compat.BuiltInContextualData.list tdecl).readback ~depth hyp constraints state rest_tm in
+        let state, goal, eg2 = Term.focused_goal.readback ~depth hyp constraints state goal_tm in
+        let tdecls = rest @ Term.focused_goal_to_tdecls goal in
+        let task = List.fold_left add_tdecl None tdecls in
+        state, task, eg1 @ eg2
+    | _ ->
+        Elpi.API.Utils.type_error
+          (Format.asprintf "Not a focused-task: %a" (Elpi.API.RawPp.term depth) tm)
+
+let focused_task : (task, 'a, 'b) Elpi.API.ContextualConversion.t = {
+  Elpi.API.ContextualConversion.ty = Elpi.API.Conversion.TyName "focused-task";
+  pp = Why3.Pretty.print_task;
+  pp_doc = (fun fmt () ->
+    Format.fprintf fmt "kind focused-task type.@\n";
+    Format.fprintf fmt "external symbol focused-task : list tdecl -> focused-goal -> focused-task.@\n");
+  readback = readback_focused_task;
+  embed = embed_focused_task;
+}
+
+let () = declaration := !declaration @ [Elpi.API.BuiltIn.MLDataC focused_task]
 
 open Common
 open Why3.Env

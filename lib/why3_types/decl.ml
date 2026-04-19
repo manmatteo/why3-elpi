@@ -1,4 +1,6 @@
 open Term
+module Term_conv = Term
+module WTerm = Why3.Term
 open Common
 open Ty
 open Why3
@@ -7,171 +9,90 @@ open Why3.Decl
 let decl_declaration = ref []
 let declaration = decl_declaration
 type prsymbol = Why3.Decl.prsymbol
+type lsymbol = Why3.Term.lsymbol
+type tysymbol = Why3.Ty.tysymbol
+type vsymbol = Why3.Term.vsymbol
+let prsymbol : (prsymbol, 'a, 'b) Elpi.API.ContextualConversion.t = Term_conv.prsymbol
+
+type logic_decl = Why3.Decl.logic_decl
+
+type gref =
+  | Gpr of prsymbol
+  | Gls of lsymbol
+  | Gty of tysymbol
+[@@deriving elpi {declaration}]
+[@@elpi.type_code "gref"]
+[@@elpi.type_doc "References to Why3 global symbols defined by declarations."]
+[@@elpi.pp fun fmt -> function
+  | Gpr pr -> Format.fprintf fmt "pr:%a" Pretty.print_pr pr
+  | Gls ls -> Format.fprintf fmt "ls:%a" Pretty.print_ls ls
+  | Gty ts -> Format.fprintf fmt "ty:%a" Pretty.print_ts ts]
+
+type decl_kind =
+  | Decl_prop
+  | Decl_type
+  | Decl_data
+  | Decl_ind
+  | Decl_logic
+  | Decl_param
+[@@deriving elpi {declaration}]
+[@@elpi.type_code "decl-kind"]
+[@@elpi.type_doc "Classification of Why3 declarations returned by why3.decl-kind."]
+[@@elpi.pp fun fmt -> function
+  | Decl_prop -> Format.fprintf fmt "prop"
+  | Decl_type -> Format.fprintf fmt "type"
+  | Decl_data -> Format.fprintf fmt "data"
+  | Decl_ind -> Format.fprintf fmt "ind"
+  | Decl_logic -> Format.fprintf fmt "logic"
+  | Decl_param -> Format.fprintf fmt "param"]
+
+type decl_body = Term_conv.decl_body =
+  | Dterm of why_simple_term
+  | Dabs of vsymbol * decl_body
+
+let decl_body = Term_conv.decl_body
+
+type decl = Why3.Decl.decl
 [@@elpi.opaque {
-  Elpi.API.OpaqueData.name = "prsymbol";
-  doc = "Names for declarations";
-  pp = Pretty.print_pr;
-  compare;
+  name = "decl";
+  pp = (pp_why_data Pretty.print_decl);
+  doc = "Opaque Why3 declaration. Inspect it with why3.decl-kind, why3.decl-defines, and why3.decl-body.";
+  compare = Stdlib.compare;
   hash = Hashtbl.hash;
   hconsed = false;
   constants = [];
 }]
 [@@deriving elpi {declaration}]
 
-let logicdeclc = Elpi.API.RawData.Constants.declare_global_symbol "logic"
-let embed_logic_decl : (logic_decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = fun ~depth hyps constraints st (ls,def) ->
-  let open Elpi.API.RawData in
-  let st, ax, eg1 = term.embed ~depth hyps constraints st (Decl.ls_defn_axiom def) in
-  let st, ls, eg2 = lsymbol.embed ~depth hyps constraints st ls in
-  st, mkApp logicdeclc ls [ax], eg1@eg2
-let readback_logic_decl : (logic_decl, 'a,'b) Elpi.API.ContextualConversion.readback = fun ~depth hyps constraints st tm ->
-  let unsupported msg =
-    Loc.errorm "Readback not supported for logic decl: %s@." msg
-  in
-  let open Elpi.API.RawData in
-  let open Why3.Decl in
-  match look ~depth tm with
-  | App (c, ls, [ax]) when c = logicdeclc ->
-    let st, _ls, eg1 = lsymbol.readback ~depth hyps constraints st ls in (* Lsymbol is not needed for now as it is read back from axiom *)
-    let st, ax, eg2 = term.readback ~depth hyps constraints st ax in
-    (match (ls_defn_of_axiom ax) with
-    | Some ax -> st, ax, eg1@eg2
-    | None -> unsupported (Format.asprintf "Couldn't read back logic declaration from axiom %a" Pretty.print_term ax))
-  | _ -> unsupported "invalid"
-let logic_decl : (logic_decl, 'c, 'csts) Elpi.API.ContextualConversion.t =
-  let pp_doc =
-    (fun fmt () ->
-       Format.fprintf fmt "kind logic_decl type.\n";
-       Format.fprintf fmt "type logic  lsymbol  -> term -> logic_decl.\n")
-  in
-  let pp = Pretty.print_logic_decl in
-  { Elpi.API.ContextualConversion.embed = embed_logic_decl; Elpi.API.ContextualConversion.readback = readback_logic_decl; ty = Elpi.API.Conversion.TyName "logic_decl"; pp_doc; pp }
+let logic_decl_lsymbol ((ls, _) : logic_decl) =
+  ls
 
-let () = declaration := ((!declaration) @ [Elpi.API.BuiltIn.MLDataC logic_decl])
+let decl_body_of_logic_decl ((_, def) : logic_decl) =
+  let vars, body = Decl.open_ls_defn def in
+  Term_conv.decl_body_of_open_term vars body
 
-type data_decl = Why3.Decl.data_decl
-[@@elpi.opaque {
-  name = "data_decl";
-  pp =
-    (pp_why_data
-       (fun fmt ->
-          fun (x, _) -> Format.fprintf fmt "%a" Pretty.print_ts x));
-  doc = "Opaque payload for Why3 algebraic data-type declarations.";
-  compare;
-  hash = Hashtbl.hash;
-  hconsed = false;
-  constants = [];
-}]
-[@@deriving elpi {declaration}]
-
-type ind_list = Why3.Decl.ind_list
-[@@elpi.opaque {
-  name = "ind_list";
-  pp =
-    (pp_why_data
-       (fun fmt _ -> Format.fprintf fmt "<ind_list>"));
-  doc = "Opaque payload for Why3 inductive declarations (predicate families and rules).";
-  compare;
-  hash = Hashtbl.hash;
-  hconsed = false;
-  constants = [];
-}]
-[@@deriving elpi {declaration}]
-
-let plemmac = Elpi.API.RawData.Constants.declare_global_symbol "lemma"
-let paxiomc = Elpi.API.RawData.Constants.declare_global_symbol "axiom"
-let pgoalc = Elpi.API.RawData.Constants.declare_global_symbol "goal"
-let paramc = Elpi.API.RawData.Constants.declare_global_symbol "const"
-let tydeclc = Elpi.API.RawData.Constants.declare_global_symbol "typ"
-let datac = Elpi.API.RawData.Constants.declare_global_symbol "data"
-let dindc = Elpi.API.RawData.Constants.declare_global_symbol "dind"
-let decllc = Elpi.API.RawData.Constants.declare_global_symbol "declls"
-
-let embed_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.embedding = fun ~depth h c st decl ->
-  let open Elpi.API.RawData in
+let decl_defined_grefs (decl : Decl.decl) =
   match decl.d_node with
-  | Decl.Dtype ty ->
-      let st, tsymb, eg = tysymbol.embed ~depth h c st ty in
-      st, mkApp tydeclc tsymb [], eg
+  | Decl.Dprop (_, pr, _) -> [Gpr pr]
+  | Decl.Dtype ts -> [Gty ts]
   | Decl.Ddata ddecls ->
-      let st, ddecls, eg =
-        (Elpi_api_compat.BuiltInContextualData.list data_decl).embed ~depth h c st ddecls in
-      st, mkApp datac ddecls [], eg
-  | Decl.Dind idecls ->
-      let st, idecls, eg = ind_list.embed ~depth h c st idecls in
-      st, mkApp dindc idecls [], eg
-  | Decl.Dparam p ->
-      let st, lsymb, eg = lsymbol.embed ~depth h c st p in
-      st, mkApp paramc lsymb [], eg
-  | Decl.Dlogic ll ->
-      let st, ll, eg =
-        (Elpi_api_compat.BuiltInContextualData.list logic_decl).embed ~depth h c st ll in
-      st, mkApp decllc ll [], eg
-  | Decl.Dprop (k, s, t) ->
-      let st, prsym, eg1 = prsymbol.embed ~depth h c st s in
-      let st, tt, eg2 = term.embed ~depth h c st t in
-      let konst = match k with
-        | Decl.Plemma -> plemmac
-        | Decl.Paxiom -> paxiomc
-        | Decl.Pgoal -> pgoalc
-      in
-      st, mkApp konst prsym [tt], eg1 @ eg2
+      List.concat_map
+        (fun (ts, ctors) -> Gty ts :: List.map (fun (ls, _) -> Gls ls) ctors)
+        ddecls
+  | Decl.Dind (_, idecls) -> List.map (fun (ls, _) -> Gls ls) idecls
+  | Decl.Dparam ls -> [Gls ls]
+  | Decl.Dlogic ldecls -> List.map (fun ld -> Gls (logic_decl_lsymbol ld)) ldecls
 
-let readback_decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.readback = fun ~depth h c st decl ->
-  let unsupported msg =
-    Loc.errorm "Readback not supported for decl: (%s, %a)@." msg (Elpi.API.RawPp.term depth) decl
-  in
-  let create_prop_decl k symt t =
-    let st, prs, eg1 = prsymbol.readback ~depth h c st symt in
-    let st, tt, eg2 = term.readback ~depth h c st t in
-    st, Decl.create_prop_decl k prs tt, eg1 @ eg2
-  in
-  let open Elpi.API.RawData in
-  match look ~depth decl with
-  | Const _ -> unsupported "const"
-  | Lam _ -> unsupported "lam"
-  | App (c, symt, [t]) when c = plemmac -> create_prop_decl Decl.Plemma symt t
-  | App (c, symt, [t]) when c = paxiomc -> create_prop_decl Decl.Paxiom symt t
-  | App (c, symt, [t]) when c = pgoalc -> create_prop_decl Decl.Pgoal symt t
-  | App (c, symt, []) when c = paramc ->
-      let st, ls, eg = lsymbol.readback ~depth h c st symt in
-      st, Decl.create_param_decl ls, eg
-  | App (c, tysymt, []) when c = tydeclc ->
-      let st, ts, eg = tysymbol.readback ~depth h c st tysymt in
-      st, Decl.create_ty_decl ts, eg
-  | App (c, dlist, []) when c = datac ->
-      let st, dlist, eg =
-        (Elpi_api_compat.BuiltInContextualData.list data_decl).readback ~depth h c st dlist in
-      st, Decl.create_data_decl dlist, eg
-  | App (c, ilist, []) when c = dindc ->
-      let st, (s, ilist), eg = ind_list.readback ~depth h c st ilist in
-      st, Decl.create_ind_decl s ilist, eg
-  | App (c, llist, []) when c = decllc ->
-      let st, dlist, eg =
-        (Elpi_api_compat.BuiltInContextualData.list logic_decl).readback ~depth h c st llist in
-      st, Decl.create_logic_decl dlist, eg
-  | App (_, _, _) -> unsupported "app"
-  | Cons (_, _) -> unsupported "cons"
-  | Nil -> unsupported "nil"
-  | Builtin (_, _) -> unsupported "builtin"
-  | CData _ -> unsupported "cdata"
-  | UnifVar (_, _) -> unsupported "unifvar"
-
-let decl : (Decl.decl, 'a, 'b) Elpi.API.ContextualConversion.t = {
-  ty = TyName "decl";
-  pp = Pretty.print_decl;
-  pp_doc = (fun fmt () -> Format.fprintf fmt
-{|kind decl type.
-type goal   prsymbol -> term -> decl.
-type lemma  prsymbol -> term -> decl.
-type axiom  prsymbol -> term -> decl.
-type typ    tysymbol -> decl. %% Abstract type
-type data   list data_decl   -> decl. %% Data (defined) type
-type dind   ind_list         -> decl. %% Inductive declaration
-type declls list logic_decl  -> decl. %% Defined logic symbol
-type const  lsymbol  -> decl.|});
-  readback = readback_decl;
-  embed = embed_decl;
-}
-
-let () = declaration := ((!declaration) @ [Elpi.API.BuiltIn.MLDataC decl])
+let decl_body_of_gref (decl : Decl.decl) (ref : gref) =
+  match decl.d_node, ref with
+  | Decl.Dprop (_, pr, tm), Gpr pr' when Why3.Decl.pr_equal pr pr' ->
+      Some (Dterm (term_to_simple_term tm))
+  | Decl.Dlogic ldecls, Gls ls ->
+      List.find_map
+        (fun ld ->
+          if WTerm.ls_compare (logic_decl_lsymbol ld) ls = 0 then
+            Some (decl_body_of_logic_decl ld)
+          else
+            None)
+        ldecls
+  | _ -> None
