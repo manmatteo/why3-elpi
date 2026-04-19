@@ -4,3 +4,7 @@ _build/*
 *.annot
 _opam/*
 .vscode/
+.direnv
+coq-elpi-hoas
+.DS_Store
+.envrc

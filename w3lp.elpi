@@ -11,112 +11,169 @@ external symbol arr : tysymbol = "1".
 kind tvsymbol type.
 
 
+% ctx_for_ty
+kind ctx-for-ty type.
+external symbol ctx-tv : ty -> tvsymbol -> prop.
+% Ctx_tv
+
 % why_simple_ty
 kind ty type.
-type tyvar tvsymbol -> ty.
-% Tyvar
-type tyapp tysymbol -> (list ty) -> ty.
+external symbol tyapp : tysymbol -> (list ty) -> ty.
 % Tyapp
+external symbol tyabs : tvsymbol -> (ty -> ty) -> ty.
+% Tyabs
 
 % Embedding of variable symbols
 kind var type.
 
 
-% Embedding of logic symbols. Name, argument and value type can be
+% Embedding of predicate symbols. Name, argument and value type can be
 % accessed via native predicates.
 kind lsymbol type.
 
 external symbol infix_at : lsymbol = "1".
 
-% quant
-kind quant type.
-type tforall quant.
-% Tforall
-type texists quant.
-% Texists
-
-% binop
-kind binop type.
-type tand binop.
-% Tand
-type tor binop.
-% Tor
-type timplies binop.
-% Timplies
-type tiff binop.
-% Tiff
-
-% ctx_for_term
-kind ctx-for-term type.
-type ctx_vs term -> var -> prop. % Dctx_vs
-
-% Pattern constructors for pattern-matching terms.
-kind pattern type.
-type pwild ty -> pattern.
-% Pwild
-type pvar var -> pattern.
-% Pvar
-type papp lsymbol -> (list pattern) -> ty -> pattern.
-% Papp
-type por pattern -> pattern -> pattern.
-% Por
-type pas pattern -> var -> pattern.
-% Pas
-
-% Why3 terms with explicit binders, optional type annotations on applications, triggers, and attributes.
-kind term type.
-type tattr (list string) -> term -> term.
-% Tattr
-type tint int -> term.
-% Tint
-type tapp lsymbol -> (list term) -> (option ty) -> term.
-% Tapp
-type tlet term -> var -> (term -> term) -> term.
-% Tlet
-type tquant quant -> var -> (option (list (list term))) -> (term -> term) -> term.
-% Tquant
-type teps var -> (term -> term) -> term.
-% Teps
-type ttrue term.
-% Ttrue
-type tfalse term.
-% Tfalse
-type tbinop binop -> term -> term -> term.
-% Tbinop
-type tif term -> term -> term -> term.
-% Tif
-type tnot term -> term.
-% Tnot
-type tcase term -> ty -> (list (pair pattern term)) -> term.
-% Tcase
-type pabs var -> (term -> term) -> term.
-% Pabs
-
 % Names for declarations
 kind prsymbol type.
 
 
-kind logic_decl type.
-type logic  lsymbol  -> term -> logic_decl.
-
-% Opaque payload for Why3 algebraic data-type declarations.
-kind data_decl type.
+% Embedding of Why3 constants
+kind constant type.
 
 
-% Opaque payload for Why3 inductive declarations (predicate families and
-% rules).
-kind ind_list type.
+% quant
+kind quant type.
+external symbol tforall : quant.
+% Tforall
+external symbol texists : quant.
+% Texists
+
+% binop
+kind binop type.
+external symbol tand : binop.
+% Tand
+external symbol tor : binop.
+% Tor
+external symbol timplies : binop.
+% Timplies
+external symbol tiff : binop.
+% Tiff
+
+% Embedding of Why3 attributes
+kind attribute type.
 
 
+% ctx_for_term
+kind ctx-for-term type.
+external symbol ctx-vs : term -> var -> prop.
+% Ctx_vs
+
+% ctx_for_lsymbol
+kind ctx-for-lsymbol type.
+external symbol ctx-ls : term -> lsymbol -> prop.
+% Ctx_ls
+
+% Pattern constructors for pattern-matching terms. Use pvar to name pattern-bound variables and babs to bind their body occurrences.
+kind pattern type.
+external symbol pwild : pattern.
+% Pwild
+external symbol pvar : var -> pattern.
+% Pvar
+external symbol papp : lsymbol -> (list pattern) -> pattern.
+% Papp
+external symbol por : pattern -> pattern -> pattern.
+% Por
+external symbol pas : pattern -> var -> pattern.
+% Pas
+
+% Case branches. Use babs to bind pattern variables, then branch to pair the pattern with its body.
+kind branch type.
+external symbol branch : pattern -> term -> branch.
+% Branch
+external symbol babs : var -> (term -> branch) -> branch.
+% Babs
+
+% Why3 terms. Use tattr to attach attributes to a subterm. Pattern-matching uses branch/babs HOAS branches, applications have optional type annotations, and quantifier triggers use an explicit ttrigger carrier directly under the quantifier body.
+kind term type.
+external symbol tattr : (list attribute) -> term -> term.
+% Tattr
+external symbol tconst : constant -> ty -> term.
+% Tconst
+external symbol tapp : lsymbol -> (list term) -> (option ty) -> term.
+% Tapp
+external symbol tlet : term -> var -> (term -> term) -> term.
+% Tlet
+external symbol ttrigger : (list (list term)) -> term -> term.
+% Ttrigger
+external symbol tquant : quant -> var -> (term -> term) -> term.
+% Tquant
+external symbol teps : var -> (term -> term) -> term.
+% Teps
+external symbol ttrue : term.
+% Ttrue
+external symbol tfalse : term.
+% Tfalse
+external symbol tbinop : binop -> term -> term -> term.
+% Tbinop
+external symbol tif : term -> term -> term -> term.
+% Tif
+external symbol tnot : term -> term.
+% Tnot
+external symbol tcase : term -> (list branch) -> term.
+% Tcase
+
+% Opened declaration bodies. Use dabs for definition parameters and dterm for the final body term.
+kind decl_body type.
+external symbol dterm : term -> decl_body.
+% Dterm
+external symbol dabs : var -> (term -> decl_body) -> decl_body.
+% Dabs
+
+% Local symbol declarations. Use symbol-param for an uninterpreted local symbol and symbol-logic for a defined local body.
+kind local-symbol-decl type.
+external symbol symbol-param : local-symbol-decl.
+% Symbol_param
+external symbol symbol-logic : decl_body -> local-symbol-decl.
+% Symbol_logic
+
+% Focused Why3 goal: a goal formula together with its original goal symbol, plus optional local symbol declarations and local proposition declarations to reify as declarations during readback.
+kind focused-goal type.
+external symbol goal-formula : prsymbol -> term -> focused-goal.
+% Goal_formula
+external symbol local-symbol : lsymbol -> (term -> local-symbol-decl) -> (term -> focused-goal) -> focused-goal.
+% Local_symbol
+external symbol local-prop : string -> term -> focused-goal -> focused-goal.
+% Local_prop
+
+% References to Why3 global symbols defined by declarations.
+kind gref type.
+external symbol gpr : prsymbol -> gref.
+% Gpr
+external symbol gls : lsymbol -> gref.
+% Gls
+external symbol gty : tysymbol -> gref.
+% Gty
+
+% Classification of Why3 declarations returned by why3.decl-kind.
+kind decl-kind type.
+external symbol decl-prop : decl-kind.
+% Decl_prop
+external symbol decl-type : decl-kind.
+% Decl_type
+external symbol decl-data : decl-kind.
+% Decl_data
+external symbol decl-ind : decl-kind.
+% Decl_ind
+external symbol decl-logic : decl-kind.
+% Decl_logic
+external symbol decl-param : decl-kind.
+% Decl_param
+
+% Opaque Why3 declaration. Inspect it with why3.decl-kind,
+% why3.decl-defines, and why3.decl-body.
 kind decl type.
-type goal   prsymbol -> term -> decl.
-type lemma  prsymbol -> term -> decl.
-type axiom  prsymbol -> term -> decl.
-type typ    tysymbol -> decl. % Abstract type
-type data   list data_decl   -> decl. % Data (defined) type
-type dind   ind_list         -> decl. % Inductive declaration
-type declls list logic_decl  -> decl. % Defined logic symbol
-type const  lsymbol  -> decl.
+
+
 % Symbol for theory (currently cannot be inspected)
 kind theory type.
 
@@ -131,17 +188,57 @@ kind meta type.
 
 % tdecl
 kind tdecl type.
-type decl decl -> tdecl.
+external symbol decl : decl -> tdecl.
 % Decl
-type use theory -> tdecl.
+external symbol use : theory -> tdecl.
 % Use
-type meta meta -> (list meta-arg) -> tdecl.
+external symbol meta : meta -> (list meta-arg) -> tdecl.
 % Meta
+
+kind focused-task type.
+external symbol focused-task : list tdecl -> focused-goal -> focused-task.
 
 % The current environment can be retrieved, for example during a
 % transformation with why3.get-env
 kind env type.
 
+
+% [why3.mk-var Name T V] Create a fresh Why3 variable symbol from a printed
+% name and type.
+external func why3.mk-var string, ty -> var.
+
+% [why3.mk-ls Name Args Result Ls] Create a fresh Why3 function symbol from
+% a printed name, argument types, and result type.
+external func why3.mk-ls string, list ty, ty -> lsymbol.
+
+% [why3.var-name V Name] Project the printed name of a variable symbol.
+external func why3.var-name var -> string.
+
+% [why3.var-attrs V Attrs] Project the attributes attached to a variable
+% symbol.
+external func why3.var-attrs var -> list attribute.
+
+% [why3.prsymbol-name Pr Name] Project the printed name of a proposition
+% symbol.
+external func why3.prsymbol-name prsymbol -> string.
+
+% [why3.prsymbol-attrs Pr Attrs] Project the attributes attached to a
+% proposition symbol.
+external func why3.prsymbol-attrs prsymbol -> list attribute.
+
+% [why3.ls-name Ls Name] Project the printed name of a logic symbol.
+external func why3.ls-name lsymbol -> string.
+
+% [why3.lsymbol-attrs Ls Attrs] Project the attributes attached to a logic
+% symbol.
+external func why3.lsymbol-attrs lsymbol -> list attribute.
+
+% [why3.tysymbol-name Ts Name] Project the printed name of a type symbol.
+external func why3.tysymbol-name tysymbol -> string.
+
+% [why3.tysymbol-attrs Ts Attrs] Project the attributes attached to a type
+% symbol.
+external func why3.tysymbol-attrs tysymbol -> list attribute.
 
 % [why3.var-type V T] Get the type of a variable
 external func why3.var-type var -> ty.
@@ -150,93 +247,27 @@ external func why3.var-type var -> ty.
 % symbol has no value type (i.e. is a proposition)
 external func why3.ls-type lsymbol -> ty.
 
-% [why3.var-name V N] Get the identifier string of a variable symbol.
-external func why3.var-name var -> string.
+% [why3.attr S Attr] Create a Why3 attribute from its string representation.
+external func why3.attr string -> attribute.
 
-% [why3.ls-name L N] Get the identifier string of a logic symbol.
-external func why3.ls-name lsymbol -> string.
+% [why3.attr-string Attr S] Project the string representation of a Why3
+% attribute.
+external func why3.attr-string attribute -> string.
 
-% [why3.tysymbol-name Ts N] Get the identifier string of a type symbol.
-external func why3.tysymbol-name tysymbol -> string.
+% [why3.decl-kind D K] Classify a declaration.
+external func why3.decl-kind decl -> decl-kind.
 
-% [why3.prsymbol-name Pr N] Get the identifier string of a proposition
-% symbol.
-external func why3.prsymbol-name prsymbol -> string.
-
-% [why3.theory-name Th N] Get the identifier string of a theory.
-external func why3.theory-name theory -> string.
-
-% [why3.meta-name M N] Get the name string of a meta declaration.
-external func why3.meta-name meta -> string.
-
-% [why3.decl-kind D K] Classify a declaration:
-% goal|lemma|axiom|typ|data|dind|declls|const.
-external func why3.decl-kind decl -> string.
-
-% [why3.decl-prop-kind D K] Get proposition kind for a proposition
-% declaration: goal|lemma|axiom.
-external func why3.decl-prop-kind decl -> string.
-
-% [why3.decl-prop-symbol D Pr] Project proposition symbol from a proposition
+% [why3.decl-defines D Refs] Enumerate the global references defined by a
 % declaration.
-external func why3.decl-prop-symbol decl -> prsymbol.
+external func why3.decl-defines decl -> list gref.
 
-% [why3.decl-prop-term D T] Project proposition term from a proposition
-% declaration.
-external func why3.decl-prop-term decl -> term.
-
-% [why3.decl-typ D Ts] Project type symbol from a type declaration.
-external func why3.decl-typ decl -> tysymbol.
-
-% [why3.decl-const D L] Project logic symbol from a constant declaration.
-external func why3.decl-const decl -> lsymbol.
-
-% [why3.decl-data D DD] Project data declaration payload from a data
-% declaration.
-external func why3.decl-data decl -> list data_decl.
-
-% [why3.decl-ind D ID] Project inductive declaration payload from an
-% inductive declaration.
-external func why3.decl-ind decl -> ind_list.
-
-% [why3.decl-logic D LD] Project logic declaration payload from a logic
-% declaration.
-external func why3.decl-logic decl -> list logic_decl.
+% [why3.decl-body D Ref Body] Project the opened body attached to a
+% declaration/reference pair. Succeeds for proposition declarations and
+% defined logic symbols.
+external func why3.decl-body decl, gref -> decl_body.
 
 % [why3.pp-decl D S] Pretty-print a declaration.
 external func why3.pp-decl decl -> string.
-
-% [why3.pp-logic-decl LD S] Pretty-print a logic declaration payload.
-external func why3.pp-logic-decl logic_decl -> string.
-
-% [why3.pp-data-decl DD S] Pretty-print a data declaration payload.
-external func why3.pp-data-decl data_decl -> string.
-
-% [why3.pp-ind-list ID S] Pretty-print an inductive declaration payload.
-external func why3.pp-ind-list ind_list -> string.
-
-% [why3.tdecl-kind TD K] Classify a task declaration: decl|use|meta|clone.
-external func why3.tdecl-kind tdecl -> string.
-
-% [why3.tdecl-decl TD D] Project declaration payload from a task declaration
-% node of kind decl.
-external func why3.tdecl-decl tdecl -> decl.
-
-% [why3.tdecl-use TD Th] Project theory payload from a task declaration node
-% of kind use.
-external func why3.tdecl-use tdecl -> theory.
-
-% [why3.tdecl-meta TD M] Project meta payload from a task declaration node
-% of kind meta.
-external func why3.tdecl-meta tdecl -> meta.
-
-% [why3.tdecl-meta-args TD Args] Project meta-argument payload from a task
-% declaration node of kind meta.
-external func why3.tdecl-meta-args tdecl -> list meta-arg.
-
-% [why3.tdecl-clone TD Th] Project cloned theory payload from a task
-% declaration node of kind clone.
-external func why3.tdecl-clone tdecl -> theory.
 
 % [why3.pp-tdecl TD S] Pretty-print a task declaration.
 external func why3.pp-tdecl tdecl -> string.
@@ -253,7 +284,89 @@ external func why3.pp-meta-arg meta-arg -> string.
 % [why3.pp-term T S] Convert a term to string using Why3's pretty printer
 external func why3.pp-term term -> string.
 
-external symbol w3_transform : string -> list tdecl -> list (list tdecl) -> prop = "1".
+% [why3.term-app F X FX] Build the higher-order application term F X using
+% Why3's infix_at.
+external func why3.term-app term, term -> term.
+
+% [why3.term-app2 F X Y FXY] Build the higher-order application term F X Y
+% using Why3's infix_at.
+external func why3.term-app2 term, term, term -> term.
+
+% [why3.lsymbol-full-type Ls Ty] Get the full arrow type of a logic symbol:
+% arg1 -> ... -> argN -> result. Fails for predicates (no value type).
+external func why3.lsymbol-full-type lsymbol -> ty.
+
+% [why3.decl-data-constructors D Ctors] If D is a Ddata declaration, return
+% the list of (constructor, projections) pairs. Each projection list entry
+% is none if the field has no projection function, or some Proj otherwise.
+% Fails if D is not a Ddata declaration.
+external func why3.decl-data-constructors decl -> list (pair lsymbol (list (option lsymbol))).
+
+% Convenience macros for working with the focused-goal API.
+
+
+% [w3-ls-of-var! V Ls] Allocate a fresh lsymbol whose name and type are taken
+% from variable symbol V. Shorthand for the three-step
+%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls
+% preamble needed before introducing a local constant.
+macro @w3-ls-of-var! V Ls :-
+  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls.
+
+
+
+% [@pi-local-param! Ls GoalOut Next F] Build a local-symbol node for the
+% uninterpreted constant Ls, bind a fresh ELPI nominal `self` for it in
+% ctx-ls, and run F self.  GoalOut is unified with the focused-goal wrapper
+% and Next is the continuation binder.  Mirrors the coq-elpi @pi-decl macro.
+%
+% Typical usage for opening a forall as a local parameter:
+%
+%   inspect GoalPr (tquant tforall V Bnd) GoalOut :-
+%     @w3-ls-of-var! V Ls,
+%     @pi-local-param! Ls GoalOut Next (self\
+%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next self)).
+macro @pi-local-param! Ls GoalOut Next F :-
+  GoalOut = local-symbol Ls (_\ symbol-param) Next,
+  pi self\ ctx-ls self Ls => F self.
+
+
+
+% [@pi-local-param-goal! Ls GoalOut F] Same as @pi-local-param!, but hides
+% the continuation binder from the caller. F receives InnerGoal: the
+% focused-goal hole to fill under the local-symbol wrapper.
+%
+% Note: `self` is a context token for ctx-ls lookup, not a term to embed.
+% To open a binder body, keep using (tapp Ls [] none).
+%
+% Typical usage:
+%
+%   @pi-local-param-goal! Ls GoalOut (InnerGoal\
+%     inspect GoalPr (Bnd (tapp Ls [] none)) InnerGoal).
+macro @pi-local-param-goal! Ls GoalOut F :-
+      GoalOut = local-symbol Ls (_\ symbol-param) (self\ Inner self),
+      pi self\ ctx-ls self Ls => F (Inner self).
+
+
+
+% [@open-forall-local-param! V Bnd GoalOut F] Open a forall binder as a
+% local-symbol parameter in one step. F receives:
+% - Body: the binder body opened as Bnd (tapp Ls [] none)
+% - InnerGoal: the focused-goal hole under the local-symbol wrapper.
+%
+% If you also need access to the freshly allocated lsymbol itself, use
+% @w3-ls-of-var! followed by @pi-local-param-goal! directly.
+%
+% Typical usage:
+%
+%   @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
+%     inspect GoalPr Body InnerGoal).
+macro @open-forall-local-param! V Bnd GoalOut F :-
+  @w3-ls-of-var! V Ls,
+  @pi-local-param-goal! Ls GoalOut (InnerGoal\
+    F (Bnd (tapp Ls [] none)) InnerGoal).
+
+
+external symbol w3_transform : string -> list tdecl -> focused-goal -> list focused-task -> prop.
 
 
 
