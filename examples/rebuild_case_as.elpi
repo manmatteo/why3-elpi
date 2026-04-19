@@ -1,0 +1,28 @@
+w3_transform "rebuild-case-as" Rest (goal-formula GoalPr Goal)
+  [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+  rewrite-term Goal GoalOut.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred rewrite-term i:term, o:term.
+pred rewrite-branch i:branch, o:branch.
+
+rewrite-term (tattr Attrs T) (tattr Attrs T') :-
+  rewrite-term T T'.
+rewrite-term (tcase Scrut Branches) (tcase Scrut BranchesOut) :-
+  std.map Branches rewrite-branch BranchesOut.
+rewrite-term T T.
+
+rewrite-branch
+  (babs X (x\
+    babs TL (tl\
+      babs Whole (whole\
+        branch (pas (papp Cons [pvar X, pvar TL]) Whole) Body))))
+  (babs X (x\
+    babs TL (tl\
+      babs Whole (whole\
+        branch (pas (papp Cons [pvar X, pvar TL]) Whole) BodyOut)))) :-
+  rewrite-term Body BodyOut.
+rewrite-branch (branch (papp Nil []) Body) (branch (papp Nil []) BodyOut) :-
+  rewrite-term Body BodyOut.
+rewrite-branch B B.
