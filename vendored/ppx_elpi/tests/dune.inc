@@ -19,7 +19,8 @@
 (executable
   (name test_alias_type)
   (modules test_alias_type)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -42,7 +43,8 @@
 (executable
   (name test_container)
   (modules test_container)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -65,7 +67,32 @@
 (executable
   (name test_double_contextual)
   (modules test_double_contextual)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
+
+
+(rule
+ (targets test_index_named_context.actual.ml)
+ (deps (:pp pp.exe) (:input test_index_named_context.ml))
+ (action (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (action (diff test_index_named_context.expected.ml test_index_named_context.actual.ml)))
+
+(rule
+ (alias runtest)
+ (action (diff test_index_named_context.expected.elpi test_index_named_context.actual.elpi)))
+
+(rule
+  (target test_index_named_context.actual.elpi)
+  (action (run ./test_index_named_context.exe %{target})))
+
+(executable
+  (name test_index_named_context)
+  (modules test_index_named_context)
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -88,7 +115,8 @@
 (executable
   (name test_mutual_adt)
   (modules test_mutual_adt)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -111,7 +139,8 @@
 (executable
   (name test_opaque_type)
   (modules test_opaque_type)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -134,7 +163,8 @@
 (executable
   (name test_opaque_type_alias)
   (modules test_opaque_type_alias)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -157,7 +187,8 @@
 (executable
   (name test_poly_adt)
   (modules test_poly_adt)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -180,7 +211,8 @@
 (executable
   (name test_poly_alias)
   (modules test_poly_alias)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -203,7 +235,8 @@
 (executable
   (name test_simple_adt)
   (modules test_simple_adt)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -226,7 +259,8 @@
 (executable
   (name test_simple_adt_record)
   (modules test_simple_adt_record)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -249,7 +283,8 @@
 (executable
   (name test_simple_contextual)
   (modules test_simple_contextual)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -272,7 +307,8 @@
 (executable
   (name test_simple_record)
   (modules test_simple_record)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 
 
 (rule
@@ -295,5 +331,6 @@
 (executable
   (name test_two_layers_context)
   (modules test_two_layers_context)
-  (preprocess (pps elpi.ppx)))
+  (preprocess (pps ppx_elpi))
+  (libraries elpi elpi_api_compat))
 

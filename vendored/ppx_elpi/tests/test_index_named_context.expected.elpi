@@ -1,0 +1,17 @@
+
+
+% tctx
+kind tctx type.
+external symbol entry : term -> string -> prop.
+% Entry
+
+% term
+kind term type.
+external symbol app : term -> term -> term.
+% App
+external symbol lam : string -> (term -> term) -> term.
+% Lam
+
+
+
+
