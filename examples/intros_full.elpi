@@ -1,0 +1,34 @@
+% Simplified but fuller version of Why3's introduction transform.
+%
+% It repeatedly introduces:
+% - top-level forall binders as local variable declarations
+% - top-level implications as local hypotheses
+
+w3_transform "intros-full" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+  intro-term GoalPr Goal GoalOut.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred intro-term i:prsymbol, i:term, o:focused-goal.
+
+intro-term GoalPr (tattr _ T) GoalOut :- intro-term GoalPr T GoalOut.
+intro-term GoalPr (ttrigger _ T) GoalOut :- intro-term GoalPr T GoalOut.
+intro-term GoalPr (tquant tforall V Bnd) GoalOut :-
+  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
+    intro-term GoalPr Body InnerGoal).
+intro-term GoalPr (tbinop timplies Premise Body) (local-prop HypName Premise GoalOut) :-
+  premise-name Premise HypName,
+  intro-term GoalPr Body GoalOut.
+intro-term GoalPr Goal (goal-formula GoalPr Goal).
+
+
+pred premise-name i:term, o:string.
+premise-name (tattr Attrs _) Name :- attr-hyp-name Attrs Name.
+premise-name _ "H".
+
+pred attr-hyp-name i:list attribute, o:string.
+attr-hyp-name [Attr | _] Name :-
+  why3.attr-string Attr AttrStr,
+  rex.split ":" AttrStr ["hyp_name", Name].
+attr-hyp-name [_ | Attrs] Name :-
+  attr-hyp-name Attrs Name.

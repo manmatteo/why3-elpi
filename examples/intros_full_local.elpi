@@ -1,0 +1,42 @@
+% Declarative introduction prototype using the focused transform ABI.
+%
+% The plugin boundary splits the current task into:
+% - the non-goal declarations
+% - the current goal, embedded as a Why3 formula together with its goal symbol
+%
+% The transform returns a focused goal wrapped in explicit local declarations.
+% Readback turns those wrappers into global task declarations.
+
+w3_transform "intros-full-local" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+  inspect GoalPr Goal GoalOut.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred inspect i:prsymbol, i:term, o:focused-goal.
+
+inspect GoalPr (tattr _ T) GoalOut :- inspect GoalPr T GoalOut.
+inspect GoalPr (ttrigger _ T) GoalOut :- inspect GoalPr T GoalOut.
+inspect GoalPr (tquant tforall V Bnd) GoalOut :-
+  print "opened-forall" V,
+  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
+    inspect GoalPr Body InnerGoal).
+inspect GoalPr (tbinop timplies Prem Body) (local-prop HypName Prem GoalOut) :-
+  premise-name Prem HypName,
+  why3.pp-term Prem PremStr,
+  print "opened-premise" HypName PremStr,
+  inspect GoalPr Body GoalOut.
+inspect GoalPr Goal (goal-formula GoalPr Goal) :-
+  print "opened-goal" GoalPr,
+  why3.pp-term Goal GoalStr,
+  print "conclusion" GoalStr.
+
+pred premise-name i:term, o:string.
+premise-name (tattr Attrs _) Name :- attr-hyp-name Attrs Name.
+premise-name _ "H".
+
+pred attr-hyp-name i:list attribute, o:string.
+attr-hyp-name [Attr | _] Name :-
+  why3.attr-string Attr AttrStr,
+  rex.split ":" AttrStr ["hyp_name", Name].
+attr-hyp-name [_ | Attrs] Name :-
+  attr-hyp-name Attrs Name.

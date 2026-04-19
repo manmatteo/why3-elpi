@@ -1,0 +1,21 @@
+w3_transform "local-logic" Rest (goal-formula GoalPr Goal)
+  [focused-task Rest GoalOut] :-
+  focus-goal GoalPr Goal GoalOut.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred focus-goal i:prsymbol, i:term, o:focused-goal.
+pred focus-after-forall i:prsymbol, i:var, i:lsymbol, i:term, o:focused-goal.
+
+focus-goal GoalPr (tquant tforall X XBnd) GoalOut :-
+  @w3-ls-of-var! X LX,
+  @pi-local-param-goal! LX GoalOut (InnerGoal\
+    focus-after-forall GoalPr X LX (XBnd (tapp LX [] none)) InnerGoal).
+focus-goal GoalPr Goal (goal-formula GoalPr Goal).
+
+focus-after-forall GoalPr X LX (tquant texists F FBnd)
+  (local-symbol G
+    (self\ symbol-logic (dabs X (x\ dterm (tapp LX [] none))))
+    (self\ goal-formula GoalPr (FBnd (tapp G [] none)))) :-
+  why3.var-type F FTy,
+  why3.mk-ls "f" [] FTy G.

@@ -1,0 +1,23 @@
+% Simplified declaration-level pass inspired by elimination transforms:
+% remove proposition declarations from the non-focused task prefix while
+% keeping the focused goal and all non-proposition declarations.
+
+w3_transform "drop-non-goal-props" Rest Goal [focused-task Out Goal] :-
+  std.map-filter Rest keep-tdecl Out.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred keep-tdecl i:tdecl, o:tdecl.
+pred keep-decl-kind i:decl-kind.
+keep-decl-kind decl-type.
+keep-decl-kind decl-data.
+keep-decl-kind decl-ind.
+keep-decl-kind decl-logic.
+keep-decl-kind decl-param.
+
+keep-tdecl (decl D) (decl D) :-
+  why3.decl-kind D Kind,
+  keep-decl-kind Kind.
+keep-tdecl (use Th) (use Th).
+keep-tdecl (meta M Args) (meta M Args).
+keep-tdecl TD TD.

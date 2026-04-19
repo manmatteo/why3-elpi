@@ -1,0 +1,40 @@
+% Minimal experiment for opening Why3 quantifier binders.
+%
+% This deliberately avoids all the extra noise of `intros_full`: no implication
+% handling, no host-side symbol creation. The only point is to test the
+% two local context patterns
+%
+%   pi x\ ctx-vs x V => ...
+%   pi x\ ctx-ls x Ls => ...
+%
+% generated from Why3 binders. We move under leading foralls, recurse on the
+% opened body, then close the binder again.
+
+w3_transform "open-forall-ctx" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+  rewrite-term Goal GoalTermOut,
+  focus-term GoalPr Goal GoalOut,
+  why3.pp-term GoalTermOut GoalStr,
+  print "rewritten-goal" GoalStr.
+
+w3_transform _ Rest Goal [focused-task Rest Goal].
+
+pred focus-term i:prsymbol, i:term, o:focused-goal.
+
+focus-term GoalPr (tattr _ T) GoalOut :- focus-term GoalPr T GoalOut.
+focus-term GoalPr (ttrigger _ T) GoalOut :- focus-term GoalPr T GoalOut.
+focus-term GoalPr (tquant tforall V Bnd) GoalOut :-
+  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
+    focus-term GoalPr Body InnerGoal).
+focus-term GoalPr _ (goal-formula GoalPr ttrue).
+
+pred rewrite-term i:term, o:term.
+rewrite-term (tattr Attrs T) (tattr Attrs T') :- rewrite-term T T'.
+rewrite-term (ttrigger Tr T) (ttrigger Tr T') :- rewrite-term T T'.
+rewrite-term (tquant tforall V Bnd)
+             (tquant tforall V (x\ BodyOut x)) :-
+  (pi x\ ctx-vs x V => (
+    Bnd x = Body,
+  why3.pp-term Body BodyStr,
+  print "open-body" BodyStr,
+    rewrite-term Body (BodyOut x))).
+rewrite-term _ ttrue.
