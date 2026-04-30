@@ -1,5 +1,6 @@
 (executable
- (name why3_elpi_trans)
+ (name why3_elpi_transformations)
+ (modules why3_elpi_trans why3_elpi_transformations)
  (libraries why3 elpi why3_elpi)
  ;; Order here is important! Otherwise I get "The module is not yet initialized" errors
  (embed_in_plugin_libraries re elpi.util elpi.trace.runtime elpi.lexer_config elpi.parser elpi.runtime elpi.compiler elpi elpi_api_compat common ty term decl theory task why3_elpi)
