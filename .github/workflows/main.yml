@@ -10,13 +10,13 @@ jobs:
     - name: Checkout tree
       uses: actions/checkout@v4
     - name: Set up OCaml
-      uses: ocaml/setup-ocaml@v2.1.7
+      uses: ocaml/setup-ocaml@v3
       with:
-        ocaml-compiler: 4.13.1
+        ocaml-compiler: 5
         dune-cache: true
     - name: Build
       run: |
         opam install . --deps-only
         opam exec -- dune build
     - name: Test
-      run: opam exec -- why3 prove -D why3 --extra-config why3extra.conf ./tests/simple.mlw -a "lp nop"
+      run: opam exec -- dune runtest
