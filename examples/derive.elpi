@@ -3,16 +3,14 @@
 % Instead it derives witnesses from the requested type shape by following
 % helper combinator signatures already present in the Why3 task.
 
-w3_transform "derive" Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
   solve-derive Rest Goal GoalOut.
 
-w3_transform "derive-eq" Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+w3_derive_eq Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
   solve-derive-family "eq" Rest Goal GoalOut.
 
-w3_transform "derive-ord" Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+w3_derive_ord Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
   solve-derive-family "ord" Rest Goal GoalOut.
-
-w3_transform _ Rest Goal [focused-task Rest Goal].
 
 pred solve-derive i:list tdecl, i:term, o:term.
 solve-derive Rest (tattr Attrs T) (tattr Attrs Out) :-
@@ -96,4 +94,4 @@ available-logic-symbol Rest Ls FullTy :-
   std.mem Rest (decl D),
   why3.decl-defines D Refs,
   std.mem Refs (gls Ls),
-  why3.lsymbol-full-type Ls FullTy.
+  why3.ls-full-type Ls FullTy.

@@ -27,8 +27,8 @@ check-open-term-attrs (tbinop timplies Premise _Conclusion) :-
   why3.attr "test" TestAttr,
   std.mem Attrs TestAttr.
 
-w3_transform "check-open-term-attrs" Rest (goal-formula GoalPr Goal)
+w3_run Rest (goal-formula GoalPr Goal)
   [focused-task Rest (goal-formula GoalPr Goal)] :-
   check-open-term-attrs Goal.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].

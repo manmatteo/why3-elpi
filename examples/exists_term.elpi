@@ -1,0 +1,19 @@
+% Instantiate the top-level existential in the goal with an explicit witness.
+%
+% This is a small proof point for typed term arguments passed through Why3's
+% Args_wrapper machinery before entering ELPI.
+%
+w3_run Rest Goal [focused-task Rest Goal].
+
+w3_exists_term Witness Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+  instantiate-exists Witness Goal GoalOut.
+
+w3_exists_term _ Rest Goal [focused-task Rest Goal].
+
+pred instantiate-exists i:term, i:term, o:term.
+instantiate-exists Witness (tattr Attrs Goal) (tattr Attrs GoalOut) :-
+  instantiate-exists Witness Goal GoalOut.
+instantiate-exists Witness (ttrigger Triggers Goal) (ttrigger Triggers GoalOut) :-
+  instantiate-exists Witness Goal GoalOut.
+instantiate-exists Witness (tquant texists _V Bnd) GoalOut :-
+  GoalOut = Bnd Witness.

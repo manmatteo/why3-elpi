@@ -10,13 +10,13 @@
 % generated from Why3 binders. We move under leading foralls, recurse on the
 % opened body, then close the binder again.
 
-w3_transform "open-forall-ctx" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   rewrite-term Goal GoalTermOut,
   focus-term GoalPr Goal GoalOut,
   why3.pp-term GoalTermOut GoalStr,
   print "rewritten-goal" GoalStr.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred focus-term i:prsymbol, i:term, o:focused-goal.
 

@@ -4,10 +4,10 @@
 % - top-level forall binders as local variable declarations
 % - top-level implications as local hypotheses
 
-w3_transform "intros-full" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   intro-term GoalPr Goal GoalOut.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred intro-term i:prsymbol, i:term, o:focused-goal.
 

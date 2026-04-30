@@ -1,8 +1,8 @@
-w3_transform "rebuild-case" Rest (goal-formula GoalPr Goal)
+w3_run Rest (goal-formula GoalPr Goal)
   [focused-task Rest (goal-formula GoalPr GoalOut)] :-
   rewrite-term Goal GoalOut.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred rewrite-term i:term, o:term.
 pred rewrite-branch i:branch, o:branch.

@@ -1,7 +1,7 @@
 The focused-goal API should be sufficient to implement a declarative
 introduction transform with explicit local-symbol allocation in Elpi code.
 
-  $ WHY3_ELPI_PROGRAM=../examples/intros_full_local.elpi why3 prove simple.mlw --extra-config why3extra.test.conf -D why3 -a "lp intros-full-local" 2>&1 | sed 's/[[:space:]]*$//' | sed -n -E '/^opened-(forall|premise|goal)|^goal (two|go1|plus)/p'
+  $ why3 prove simple.mlw --extra-config why3extra.test.conf -D why3 -a "elpi_intros_full_local" 2>&1 | sed 's/[[:space:]]*$//' | sed -n -E '/^opened-(forall|premise|goal)|^goal (two|go1|plus)/p'
   opened-goal pairs
   opened-goal t
   opened-forall `u`

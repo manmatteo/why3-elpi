@@ -1,0 +1,18 @@
+(* CVC5 has a native theory of algebraic data types that includes decidable equality.
+   All goals in this module are first-order and proved immediately by CVC5. *)
+
+type color = Red | Green | Blue
+
+(* Constructors are distinct *)
+goal distinct : Red <> Green /\ Green <> Blue /\ Red <> Blue
+
+(* Equality on ADTs is decidable *)
+goal eq_decide : forall a b: color. a = b \/ a <> b
+
+(* Every value is one of the declared constructors *)
+goal exhaust : forall c: color. c = Red \/ c = Green \/ c = Blue
+
+(* Constructor injectivity for a parameterised type *)
+type box 'a = Box 'a
+
+goal box_inj : forall x y: int. Box x = Box y -> x = y

@@ -1,0 +1,22 @@
+(* CVC5's ADT theory has no notion of ordering on constructors.
+   The goal below requires synthesising a total strict order: CVC5 fails.
+   By contrast, a derive_ord transform could synthesise the comparison
+   function from the declaration order and hand CVC5 a first-order residual. *)
+
+use int.Int
+
+type color = Red | Green | Blue
+
+(* A total strict order on color:
+     cmp a a = 0
+     cmp a b = -(cmp b a)   (antisymmetry)
+     cmp a b < 0 -> cmp b c < 0 -> cmp a c < 0   (transitivity)
+
+   This is valid (e.g. rank Red=0, Green=1, Blue=2), but CVC5 cannot
+   prove it because quantifying over function types is beyond its
+   first-order ADT theory. *)
+goal has_total_order :
+  exists cmp: color -> color -> int.
+    (forall c. cmp c c = 0) /\
+    (forall a b. cmp a b = - (cmp b a)) /\
+    (forall a b c. cmp a b < 0 -> cmp b c < 0 -> cmp a c < 0)
