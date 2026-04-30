@@ -37,14 +37,35 @@ let why3_builtin_declarations =
               !: (Why3.Term.create_vsymbol (Why3.Ident.id_fresh name) ty)),
         DocAbove );
   MLCode
+      ( Pred ( "why3.mk-tv",
+            CIn  (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            COut (tvsymbol, "Tv",
+            Read (in_ctx_for_ty, "Create a fresh Why3 type variable symbol from a printed name."))),
+            fun name _ ~depth:_ _ctx _ _ ->
+              !: (Why3.Ty.create_tvsymbol (Why3.Ident.id_fresh name))),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.mk-ts",
+            CIn  (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            CIn  (Elpi_api_compat.BuiltInContextualData.list tvsymbol, "TvArgs",
+            COut (tysymbol, "Ts",
+            Read (in_ctx_for_ty, "Create a fresh abstract type symbol with the given name and type-variable arguments. Pass [] for a monomorphic (arity-0) type symbol.")))),
+            fun name tvargs _ ~depth:_ _ctx _ _ ->
+              !: (Why3.Ty.create_tysymbol (Why3.Ident.id_fresh name) tvargs Why3.Ty.NoDef)),
+        DocAbove );
+  MLCode
       ( Pred ( "why3.mk-ls",
             CIn  (Elpi_api_compat.BuiltInContextualData.string, "Name",
             CIn  ((Elpi_api_compat.BuiltInContextualData.list ty), "Args",
-            CIn  (ty, "Result",
+            CIn  ((Elpi_api_compat.PPX.option ty), "Result",
             COut (lsymbol, "Ls",
-            Read (in_ctx_for_ty, "Create a fresh Why3 function symbol from a printed name, argument types, and result type."))))),
+            Read (in_ctx_for_ty, "Create a fresh Why3 logic symbol. When Result is (some T) creates a function symbol with return type T; when Result is none creates a predicate symbol (ls_value = None)."))))),
             fun name args result _ ~depth:_ _ctx _ _ ->
-              !: (Why3.Term.create_fsymbol (Why3.Ident.id_fresh name) args result)),
+              let ls = match result with
+                | None -> Why3.Term.create_psymbol (Why3.Ident.id_fresh name) args
+                | Some ret -> Why3.Term.create_fsymbol (Why3.Ident.id_fresh name) args ret
+              in
+              !: ls),
         DocAbove );
   MLCode
       ( Pred ( "why3.var-name",
@@ -82,11 +103,18 @@ let why3_builtin_declarations =
             fun ls _ ~depth:_ _ctx _ _ -> !: (ls.ls_name.Why3.Ident.id_string)),
         DocAbove );
   MLCode
-      ( Pred ( "why3.lsymbol-attrs",
+      ( Pred ( "why3.ls-attrs",
             CIn  (lsymbol, "Ls",
             COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
             Read (in_ctx_for_term, "Project the attributes attached to a logic symbol."))),
             fun ls _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident ls.ls_name)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.ls-args",
+            CIn  (lsymbol, "Ls",
+            COut ((Elpi_api_compat.BuiltInContextualData.list ty), "Args",
+            Read (in_ctx_for_ty, "Return the argument types of a logic symbol."))),
+            fun ls _ ~depth:_ _ctx _ _ -> !: (ls.ls_args)),
         DocAbove );
   MLCode
       ( Pred ( "why3.tysymbol-name",
@@ -99,8 +127,29 @@ let why3_builtin_declarations =
       ( Pred ( "why3.tysymbol-attrs",
             CIn  (tysymbol, "Ts",
             COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
-            Read (in_ctx_for_term, "Project the attributes attached to a type symbol."))),
+            Read (in_ctx_for_ty, "Project the attributes attached to a type symbol."))),
             fun ts _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident ts.ts_name)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.ts-args",
+            CIn  (tysymbol, "Ts",
+            COut ((Elpi_api_compat.BuiltInContextualData.list tvsymbol), "TvArgs",
+            Read (in_ctx_for_ty, "Return the type variable arguments (ts_args) of a type symbol."))),
+            fun ts _ ~depth:_ _ctx _ _ -> !: (ts.ts_args)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.tv-name",
+            CIn  (tvsymbol, "Tv",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "Name",
+            Read (in_ctx_for_ty, "Project the printed name of a type variable symbol."))),
+            fun tv _ ~depth:_ _ctx _ _ -> !: (tv.tv_name.Why3.Ident.id_string)),
+        DocAbove );
+  MLCode
+      ( Pred ( "why3.tv-attrs",
+            CIn  (tvsymbol, "Tv",
+            COut ((Elpi_api_compat.BuiltInContextualData.list attribute), "Attrs",
+            Read (in_ctx_for_ty, "Project the attributes attached to a type variable symbol."))),
+            fun tv _ ~depth:_ _ctx _ _ -> !: (attrs_of_ident tv.tv_name)),
         DocAbove );
   MLCode
       ( Pred ( "why3.var-type",
@@ -203,7 +252,14 @@ let why3_builtin_declarations =
             (Format.asprintf "%a@\n%!" term.pp t)),
         DocAbove );
   MLCode
-  ( Pred ( "why3.lsymbol-full-type",
+  ( Pred ( "why3.pp-ty",
+            CIn  (ty, "T",
+            COut (Elpi_api_compat.BuiltInContextualData.string, "S",
+            Read (in_ctx_for_ty, "Convert a type to string using Why3's pretty printer."))),
+            fun t _ ~depth:_ _ctx _ _ -> !: (Format.asprintf "%a" Why3.Pretty.print_ty t)),
+        DocAbove );
+  MLCode
+  ( Pred ( "why3.ls-full-type",
             CIn  (lsymbol, "Ls",
             COut (ty, "Ty",
             Read (in_ctx_for_ty, "Get the full arrow type of a logic symbol: arg1 -> ... -> argN -> result. Fails for predicates (no value type)."))),
@@ -235,33 +291,33 @@ let why3_builtin_declarations =
   LPCode {|
 % [w3-ls-of-var! V Ls] Allocate a fresh lsymbol whose name and type are taken
 % from variable symbol V. Shorthand for the three-step
-%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls
+%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] (some Ty) Ls
 % preamble needed before introducing a local constant.
 macro @w3-ls-of-var! V Ls :-
-  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls.
+  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] (some Ty) Ls.
 |};
   LPCode {|
 % [@pi-local-param! Ls GoalOut Next F] Build a local-symbol node for the
-% uninterpreted constant Ls, bind a fresh ELPI nominal `self` for it in
-% ctx-ls, and run F self.  GoalOut is unified with the focused-goal wrapper
+% uninterpreted constant Ls, bind a fresh ELPI nominal `x` for it in
+% ctx-ls, and evaluate F x.  GoalOut is unified with the focused-goal wrapper
 % and Next is the continuation binder.  Mirrors the coq-elpi @pi-decl macro.
 %
 % Typical usage for opening a forall as a local parameter:
 %
 %   inspect GoalPr (tquant tforall V Bnd) GoalOut :-
 %     @w3-ls-of-var! V Ls,
-%     @pi-local-param! Ls GoalOut Next (self\
-%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next self)).
+%     @pi-local-param! Ls GoalOut Next (x\
+%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next x)).
 macro @pi-local-param! Ls GoalOut Next F :-
   GoalOut = local-symbol Ls (_\ symbol-param) Next,
-  pi self\ ctx-ls self Ls => F self.
+  pi x\ ctx-ls x Ls => F x.
 |};
       LPCode {|
 % [@pi-local-param-goal! Ls GoalOut F] Same as @pi-local-param!, but hides
 % the continuation binder from the caller. F receives InnerGoal: the
 % focused-goal hole to fill under the local-symbol wrapper.
 %
-% Note: `self` is a context token for ctx-ls lookup, not a term to embed.
+% Note: `x` is a context token for ctx-ls lookup, not a term to embed.
 % To open a binder body, keep using (tapp Ls [] none).
 %
 % Typical usage:
@@ -269,8 +325,8 @@ macro @pi-local-param! Ls GoalOut Next F :-
 %   @pi-local-param-goal! Ls GoalOut (InnerGoal\
 %     inspect GoalPr (Bnd (tapp Ls [] none)) InnerGoal).
 macro @pi-local-param-goal! Ls GoalOut F :-
-      GoalOut = local-symbol Ls (_\ symbol-param) (self\ Inner self),
-      pi self\ ctx-ls self Ls => F (Inner self).
+      GoalOut = local-symbol Ls (_\ symbol-param) (x\ Inner x),
+      pi x\ ctx-ls x Ls => F (Inner x).
 |};
       LPCode {|
 % [@open-forall-local-param! V Bnd GoalOut F] Open a forall binder as a
