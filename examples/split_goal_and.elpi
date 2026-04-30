@@ -1,11 +1,11 @@
 % Simplified version of Why3's split_goal transform:
 % split only top-level conjunctions in the goal into independent subgoals.
 
-w3_transform "split-goal-and" Rest (goal-formula GoalPr Goal) Tasks :-
+w3_run Rest (goal-formula GoalPr Goal) Tasks :-
   flatten-and Goal Terms,
   std.map Terms (mk-task Rest GoalPr) Tasks.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred flatten-and i:term, o:list term.
 flatten-and (tattr _ T) Out :- flatten-and T Out.

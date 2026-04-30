@@ -5,13 +5,19 @@
   normalize_quantifiers
   check_open_term_attrs.elpi
   ../examples/apply_lite.elpi
-  ../examples/derive.elpi  ../examples/derive_eq.elpi  ../examples/drop_non_goal_props.elpi
+  ../examples/exists_term.elpi
+  ../examples/derive.elpi
+  ../examples/derive_eq.elpi
+  ../examples/drop_non_goal_props.elpi
+  ../examples/intro_implies.elpi
+  ../examples/intros_full.elpi
+  ../examples/intros_full_local.elpi
   ../examples/local_logic.elpi
   ../examples/local_logic_named.elpi
-    ../examples/intros_full.elpi
+  ../examples/open_forall_ctx.elpi
   ../examples/rebuild_case.elpi
   ../examples/rebuild_case_as.elpi
-    ../examples/intros_full_local.elpi
-    ../examples/tc.elpi
+  ../examples/split_goal_and.elpi
+  ../examples/tc.elpi
   ../transform.elpi
-  ../bin/why3_elpi_trans.cmxs))
+  ../bin/why3_elpi_transformations.cmxs))

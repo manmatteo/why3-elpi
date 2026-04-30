@@ -1,5 +1,5 @@
 
-w3_transform "tc" Rest (goal-formula GoalPr GoalTerm) [focused-task Rest (goal-formula GoalPr FullInstance)] :-
+w3_run Rest (goal-formula GoalPr GoalTerm) [focused-task Rest (goal-formula GoalPr FullInstance)] :-
   std.map-filter Rest get-class-ty ClassTypes,
   print "ClassTypes:" ClassTypes,
   std.map ClassTypes (x\ y\ y = is-class-ty x) ClassProp,
@@ -12,7 +12,7 @@ w3_transform "tc" Rest (goal-formula GoalPr GoalTerm) [focused-task Rest (goal-f
     )),
   print "Indeed this is fine".
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred solve-tc i:term, o:term, o:list tdecl.
 % solve-tc (ex Name (tapp TySym _ as Ty) F) FullInstance [decl (axiom PName Tm)|Rest] :-
@@ -49,7 +49,7 @@ decl-defined-lsymbol-body D LS Def :-
 pred is-instance i:tdecl.
 is-instance (decl D) :-
   decl-defined-lsymbol-body D LS _,
-  why3.lsymbol-attrs LS A,
+  why3.ls-attrs LS A,
   has-attr A "instance".
 
 pred has-attr i:list attribute, i:string.
@@ -60,7 +60,7 @@ has-attr Attrs Name :-
 pred compile-instance i:tdecl, o:prop.
 compile-instance (decl D) P :-
   decl-defined-lsymbol-body D LS _Def,
-  why3.lsymbol-full-type LS Ty,
+  why3.ls-full-type LS Ty,
   compile-aux Ty LS [] true P,
   print "compiled" Ty "to" P.
 pred compile-aux i:ty, i:lsymbol, i:list term, i:prop, o:prop.

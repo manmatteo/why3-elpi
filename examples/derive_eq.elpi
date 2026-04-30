@@ -15,11 +15,11 @@
 %   - Structural term synthesis via dabs/dterm/tcase/branch
 
 % Main transform: recognise exists goals and attempt synthesis
-w3_transform "derive-eq-auto" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   open-and-derive GoalPr Rest Goal GoalOut.
 
 % Fallback: no synthesis attempted
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 % Recursively open forall/exists and attempt synthesis at the exists
 pred open-and-derive i:prsymbol, i:list tdecl, i:term, o:focused-goal.
@@ -34,20 +34,18 @@ open-and-derive GoalPr Rest (ttrigger _ T) GoalOut :-
 open-and-derive GoalPr Rest (tquant texists EqVar Bnd) GoalOut :-
   why3.var-type EqVar VarTy,
   % Extract the compared type from a function type (a -> a -> bool)
-  extract-base-type-from-arrow VarTy _FnTy FullBaseTy TySym,
+  extract-base-type-from-arrow VarTy FullBaseTy TySym,
   find-data-decl Rest TySym DataDecl,
   why3.decl-data-constructors DataDecl Ctors,
   why3.var-name EqVar EqName,
-  why3.mk-ls EqName [] VarTy EqLs,
+  why3.mk-ls EqName [] (some VarTy) EqLs,
   find-global-eq-symbol Rest EqSym,
-  print "derive-eq-try" EqName FullBaseTy Ctors,
   synth-eq-body-from-ctors FullBaseTy Ctors EqLs EqSym EqBody,
   GoalOut = local-symbol EqLs
     (_\ symbol-logic EqBody)
     (self\ ContGoal self),
   (pi self\ ctx-ls self EqLs =>
-    (print "derive-eq-body-ok" EqName,
-     open-and-derive GoalPr Rest (Bnd (tapp EqLs [] none)) (ContGoal self))).
+    open-and-derive GoalPr Rest (Bnd (tapp EqLs [] none)) (ContGoal self)).
 
 % Skip forall and pass through
 open-and-derive GoalPr _Rest (tquant tforall FVar Bnd) GoalOut :-
@@ -60,15 +58,12 @@ open-and-derive GoalPr _Rest (tquant texists V Bnd) GoalOut :-
 % Fallback: leave goal unchanged
 open-and-derive GoalPr _ Goal (goal-formula GoalPr Goal).
 
-% Try to extract base type from a function type (a -> b -> c gives a)
-% For an equality function type like (tree int -> tree int -> bool), extract tree int
-% Returns: (full_func_ty, base_ty, base_ty_symbol)
-pred extract-base-type-from-arrow i:ty, o:ty, o:ty, o:tysymbol.
-extract-base-type-from-arrow (tyapp arr [ArgTy, _RestTy]) (tyapp arr [ArgTy, _RestTy]) ArgTy TySym :-
-  ArgTy = tyapp TySym _,
-  !.
-extract-base-type-from-arrow (tyapp arr [_ArgTy, RestTy]) FullTy BaseTy TySym :-
-  extract-base-type-from-arrow RestTy FullTy BaseTy TySym.
+% Extract base argument type and its type symbol from a function type (a -> a -> bool gives a, sym).
+pred extract-base-type-from-arrow i:ty, o:ty, o:tysymbol.
+extract-base-type-from-arrow (tyapp arr [ArgTy, _]) ArgTy TySym :-
+  ArgTy = tyapp TySym _, !.
+extract-base-type-from-arrow (tyapp arr [_, RestTy]) BaseTy TySym :-
+  extract-base-type-from-arrow RestTy BaseTy TySym.
 
 % Find the Ddata declaration that defines the given type symbol
 pred find-data-decl i:list tdecl, i:tysymbol, o:decl.
@@ -84,22 +79,12 @@ find-global-eq-symbol Rest EqSym :-
   std.mem Rest (decl D),
   why3.decl-defines D Refs,
   std.mem Refs (gls EqSym),
-  why3.ls-name EqSym "(=)".
-find-global-eq-symbol Rest EqSym :-
-  std.mem Rest (decl D),
-  why3.decl-defines D Refs,
-  std.mem Refs (gls EqSym),
-  why3.ls-name EqSym "infix_eq".
-find-global-eq-symbol Rest EqSym :-
-  std.mem Rest (decl D),
-  why3.decl-defines D Refs,
-  std.mem Refs (gls EqSym),
-  why3.ls-name EqSym "infix =".
+  (why3.ls-name EqSym "(=)" ; why3.ls-name EqSym "infix_eq" ; why3.ls-name EqSym "infix =").
 
 % Build argument types for a constructor, instantiating type parameters from BaseTy.
 pred constructor-arg-types i:lsymbol, i:ty, o:list ty.
 constructor-arg-types Ctor BaseTy ArgTys :-
-  why3.lsymbol-full-type Ctor FullTy,
+  why3.ls-full-type Ctor FullTy,
   instantiate-constructor-type FullTy BaseTy ArgTys.
 
 pred instantiate-constructor-type i:ty, i:ty, o:list ty.
@@ -109,60 +94,16 @@ instantiate-constructor-type (tyapp arr [ArgTy, RestTy]) BaseTy [ArgTy | ArgTys]
   instantiate-constructor-type RestTy BaseTy ArgTys.
 instantiate-constructor-type BaseTy BaseTy [].
 
-pred wildcards-for-types i:list ty, o:list pattern.
-wildcards-for-types [] [].
-wildcards-for-types [_ | Tys] [pwild | Ps] :-
-  wildcards-for-types Tys Ps.
-
-pred mk-wild-ctor-pattern i:lsymbol, i:list ty, o:pattern.
-mk-wild-ctor-pattern Ctor ArgTys (papp Ctor Pats) :-
-  wildcards-for-types ArgTys Pats.
-
-pred apply-binary-term i:term, i:term, i:term, o:term.
-apply-binary-term F X Y (tapply (tapply F X) Y).
-
 pred compare-field i:ty, i:term, i:lsymbol, i:ty, i:term, i:term, o:term.
-compare-field BaseTy EqSelf _EqSym FieldTy X Y Out :-
-  FieldTy = BaseTy,
-  apply-binary-term EqSelf X Y Out,
-  !.
+compare-field BaseTy EqSelf _EqSym FieldTy X Y (tapply (tapply EqSelf X) Y) :-
+  FieldTy = BaseTy, !.
 compare-field _BaseTy _EqSelf EqSym _FieldTy X Y (tapp EqSym [X, Y] none).
-
-pred combine-comparisons i:list term, o:term.
-combine-comparisons [] ttrue.
-combine-comparisons [Cmp | Cmps] Out :-
-  combine-comparisons Cmps Tail,
-  Out = tif Cmp Tail tfalse.
-
-pred snoc-term i:list term, i:term, o:list term.
-snoc-term [] T [T].
-snoc-term [H | T0] T [H | T1] :-
-  snoc-term T0 T T1.
 
 pred mk-vars-from-types i:list ty, i:string, o:list var.
 mk-vars-from-types [] _ [].
 mk-vars-from-types [Ty | Tys] Prefix [V | Vs] :-
   why3.mk-var Prefix Ty V,
   mk-vars-from-types Tys Prefix Vs.
-
-pred mk-var-pattern i:var, o:pattern.
-mk-var-pattern V (pvar V).
-
-pred vars-to-patterns i:list var, o:list pattern.
-vars-to-patterns [] [].
-vars-to-patterns [V | Vars] [pvar V | Pats] :-
-  vars-to-patterns Vars Pats.
-
-pred mk-ctor-pattern i:lsymbol, i:list var, o:pattern.
-mk-ctor-pattern Ctor Vars (papp Ctor Pats) :-
-  vars-to-patterns Vars Pats.
-
-pred compare-fields i:ty, i:term, i:lsymbol, i:list ty, i:list term, i:list term, o:term.
-compare-fields _ _ _ [] [] [] ttrue.
-compare-fields BaseTy EqSelf EqSym [Ty | Tys] [X | Xs] [Y | Ys] Out :-
-  compare-field BaseTy EqSelf EqSym Ty X Y Head,
-  compare-fields BaseTy EqSelf EqSym Tys Xs Ys Tail,
-  Out = tif Head Tail tfalse.
 
 pred prepend-comparison i:term, i:branch, o:branch.
 prepend-comparison Cmp (branch Pat Body) (branch Pat (tif Cmp Body tfalse)).
@@ -179,11 +120,8 @@ prepend-pattern-var V (babs W Bnd) (babs W (w\ BndOut w)) :-
 pred prepend-y-field i:ty, i:term, i:lsymbol, i:ty, i:term, i:var, i:branch, o:branch.
 prepend-y-field BaseTy EqSelf EqSym FieldTy X YVar TailBranch (babs YVar (y\ BranchOut y)) :-
   (pi y\ ctx-vs y YVar =>
-    (print "prepend-y-field-open" YVar,
-     compare-field BaseTy EqSelf EqSym FieldTy X y Cmp,
-     print "prepend-y-field-cmp-ok" YVar,
+    (compare-field BaseTy EqSelf EqSym FieldTy X y Cmp,
      prepend-pattern-var YVar TailBranch TailWithPat,
-     print "prepend-y-field-pat-ok" YVar,
      prepend-comparison Cmp TailWithPat (BranchOut y))).
 
 pred prepend-field-open
@@ -194,12 +132,10 @@ prepend-field-open BaseTy EqSelf EqSym FieldTy XVar X YVar (babs V Bnd) (babs V 
 prepend-field-open BaseTy EqSelf EqSym FieldTy XVar X YVar
   (branch (papp Ctor PatsX) (tcase BTerm [SameCtor, branch pwild tfalse]))
   (branch (papp Ctor [pvar XVar | PatsX]) (tcase BTerm [SameCtorOut, branch pwild tfalse])) :-
-  print "prepend-field-open-base" XVar YVar,
   prepend-y-field BaseTy EqSelf EqSym FieldTy X YVar SameCtor SameCtorOut.
 
 pred prepend-field i:ty, i:term, i:lsymbol, i:ty, i:var, i:var, i:branch, o:branch.
 prepend-field BaseTy EqSelf EqSym FieldTy XVar YVar TailBranch (babs XVar (x\ BranchOut x)) :-
-  print "prepend-field" XVar YVar FieldTy,
   (pi x\ ctx-vs x XVar =>
     prepend-field-open BaseTy EqSelf EqSym FieldTy XVar x YVar TailBranch (BranchOut x)).
 
@@ -208,7 +144,6 @@ pred build-ctor-branch i:ty, i:term, i:lsymbol, i:term, i:lsymbol,
 build-ctor-branch _BaseTy _EqSelf _EqSym BTerm Ctor [] [] []
   (branch (papp Ctor []) (tcase BTerm [branch (papp Ctor []) ttrue, branch pwild tfalse])).
 build-ctor-branch BaseTy EqSelf EqSym BTerm Ctor [FieldTy | FieldTys] [X | Xs] [Y | Ys] BranchOut :-
-  print "build-ctor-branch" Ctor FieldTy X Y,
   build-ctor-branch BaseTy EqSelf EqSym BTerm Ctor FieldTys Xs Ys TailBranch,
   prepend-field BaseTy EqSelf EqSym FieldTy X Y TailBranch BranchOut.
 

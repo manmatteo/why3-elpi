@@ -1,0 +1,6 @@
+predicate p
+predicate q
+
+axiom hpq : p -> q
+
+goal g : q

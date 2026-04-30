@@ -1,10 +1,10 @@
 % Simplified version of Why3's introduction transform:
 % repeatedly turns goal hypotheses A -> B into local hypotheses and a smaller goal B.
 
-w3_transform "intro-implies" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   intro-implies GoalPr Goal GoalOut.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred intro-implies i:prsymbol, i:term, o:focused-goal.
 intro-implies GoalPr (tattr _ T) GoalOut :- intro-implies GoalPr T GoalOut.

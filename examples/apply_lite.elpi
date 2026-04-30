@@ -7,28 +7,21 @@
 % This is intentionally lightweight and showcases how ELPI unification can
 % already provide tactic-like behavior with a small amount of code.
 %
-% Supported modes:
-%   lp apply-lite
-%   lp apply-lite-by:H
-%   lp apply-lite-with:H:c1:c2:...
+% Registered Why3 wrappers:
+%   elpi_apply_lite
+%   elpi_apply_lite_by <prop>
 
-w3_transform Mode Rest (goal-formula GoalPr GoalTerm) Tasks :-
-  rex.split " " Mode ["apply-lite"],
+w3_run Rest (goal-formula GoalPr GoalTerm) Tasks :-
   find-applicable Rest GoalTerm Premises _UsedPr,
   premises-to-tasks GoalPr Rest Premises Tasks.
 
-w3_transform Mode Rest (goal-formula GoalPr GoalTerm) Tasks :-
-  rex.split ":" Mode ["apply-lite-by", Name],
-  find-applicable-by-name Rest Name GoalTerm Premises _UsedPr,
+w3_run Rest Goal [focused-task Rest Goal].
+
+w3_apply_lite_by Target Rest (goal-formula GoalPr GoalTerm) Tasks :-
+  find-applicable-by-prsymbol Rest Target GoalTerm Premises,
   premises-to-tasks GoalPr Rest Premises Tasks.
 
-w3_transform Mode Rest (goal-formula GoalPr GoalTerm) Tasks :-
-  rex.split ":" Mode ["apply-lite-with", Name | WithNames],
-  resolve-with-consts Rest WithNames WithConsts,
-  find-applicable-with-by-name Rest Name WithConsts GoalTerm Premises _UsedPr,
-  premises-to-tasks GoalPr Rest Premises Tasks.
-
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_apply_lite_by _ Rest Goal [focused-task Rest Goal].
 
 pred applicable-prop-decl i:decl, o:prsymbol, o:term.
 applicable-prop-decl D Pr T :-
@@ -45,23 +38,13 @@ find-applicable [decl D | _] Goal Premises Pr :-
 find-applicable [_ | Rest] Goal Premises Pr :-
   find-applicable Rest Goal Premises Pr.
 
-pred find-applicable-by-name i:list tdecl, i:string, i:term, o:list term, o:prsymbol.
-find-applicable-by-name [decl D | _] Name Goal Premises Pr :-
-  applicable-prop-decl D Pr T,
-  why3.prsymbol-name Pr Name,
+pred find-applicable-by-prsymbol i:list tdecl, i:prsymbol, i:term, o:list term.
+find-applicable-by-prsymbol [decl D | _] Target Goal Premises :-
+  applicable-prop-decl D Target T,
   rule-shape T Premises Head,
   Head = Goal.
-find-applicable-by-name [_ | Rest] Name Goal Premises Pr :-
-  find-applicable-by-name Rest Name Goal Premises Pr.
-
-pred find-applicable-with-by-name i:list tdecl, i:string, i:list lsymbol, i:term, o:list term, o:prsymbol.
-find-applicable-with-by-name [decl D | _] Name WithConsts Goal Premises Pr :-
-  applicable-prop-decl D Pr T,
-  why3.prsymbol-name Pr Name,
-  rule-shape-with T WithConsts Premises Head,
-  Head = Goal.
-find-applicable-with-by-name [_ | Rest] Name WithConsts Goal Premises Pr :-
-  find-applicable-with-by-name Rest Name WithConsts Goal Premises Pr.
+find-applicable-by-prsymbol [_ | Rest] Target Goal Premises :-
+  find-applicable-by-prsymbol Rest Target Goal Premises.
 
 pred rule-shape i:term, o:list term, o:term.
 rule-shape (tattr _ T) Premises Head :- rule-shape T Premises Head.
@@ -69,32 +52,6 @@ rule-shape (ttrigger _ T) Premises Head :- rule-shape T Premises Head.
 rule-shape (tbinop timplies Premise Tail) [Premise | Premises] Head :-
   rule-shape Tail Premises Head.
 rule-shape T [] T.
-
-pred rule-shape-with i:term, i:list lsymbol, o:list term, o:term.
-rule-shape-with (tattr _ T) Ws Premises Head :- rule-shape-with T Ws Premises Head.
-rule-shape-with (ttrigger _ T) Ws Premises Head :- rule-shape-with T Ws Premises Head.
-rule-shape-with (tquant tforall _Name Bnd) [W | Ws] Premises Head :-
-  Bnd (tapp W [] none) = Body,
-  rule-shape-with Body Ws Premises Head.
-rule-shape-with (tbinop timplies Premise Tail) Ws [Premise | Premises] Head :-
-  rule-shape-with Tail Ws Premises Head.
-rule-shape-with T [] [] T.
-
-pred resolve-with-consts i:list tdecl, i:list string, o:list lsymbol.
-resolve-with-consts _ [] [].
-resolve-with-consts Decls [Name | Names] [Ls | Ts] :-
-  named-const-symbol Decls Name Ls,
-  resolve-with-consts Decls Names Ts.
-
-pred named-const-symbol i:list tdecl, i:string, o:lsymbol.
-named-const-symbol [decl D | _] Name Ls :-
-  why3.decl-kind D decl-param,
-  why3.decl-defines D Refs,
-  std.mem Refs (gls Ls),
-  why3.ls-name Ls Name,
-  why3.ls-type Ls _Ty.
-named-const-symbol [_ | Rest] Name Ls :-
-  named-const-symbol Rest Name Ls.
 
 pred premises-to-tasks i:prsymbol, i:list tdecl, i:list term, o:list focused-task.
 premises-to-tasks _ _ [] [].

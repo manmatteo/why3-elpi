@@ -7,10 +7,10 @@
 % The transform returns a focused goal wrapped in explicit local declarations.
 % Readback turns those wrappers into global task declarations.
 
-w3_transform "intros-full-local" Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
+w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   inspect GoalPr Goal GoalOut.
 
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred inspect i:prsymbol, i:term, o:focused-goal.
 
