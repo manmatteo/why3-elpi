@@ -4,12 +4,13 @@ Warning: work in progress!
 
 A library for [Why3](why3.lri.fr) embedding
 [Elpi](https://github.com/LPCIC/elpi).  The Why3-Elpi library provides Elpi
-translations of a subset of the Why3 API, and the Why3 plugin `why3_elpi_trans`
+translations of a subset of the Why3 API, and the Why3 plugin `why3_elpi_transformations`
 uses the library to allow users to write Why3 transformations in the Elpi
-dialect of λProlog. The transformation entry point is the focused predicate
-`w3_transform`, which receives the non-goal declarations, the current goal, and
-returns a list of focused output tasks. The implemented API is visible in the
-`w3lp.elpi` file.
+dialect of λProlog. The dynamic transformation entry point is the focused
+predicate `w3_transform`, which receives the non-goal declarations, the current
+goal, and returns a list of focused output tasks; dedicated wrappers can expose
+additional typed ELPI entry points such as `w3_apply_lite_by` and
+`w3_exists_term`. The implemented API is visible in the `w3lp.elpi` file.
 
 ## Quick start
 Clone the repository, install the dependencies, and build with dune.
@@ -44,54 +45,62 @@ The Why3 regression tests live as Cram transcripts in `tests/*.t`.
 
 The `examples/` directory contains concise, intentionally simplified
 reimplementations of common Why3 transformation ideas, plus a few richer
-API showcase transforms:
+API showcase transforms. Each one is exposed through a dedicated Why3
+transformation wrapper; `lp` itself now always loads `transform.elpi` and is
+best treated as the ad hoc development hook rather than the primary interface
+for the bundled examples.
 
 - `examples/intro_implies.elpi`
-  - Mode: `lp intro-implies`
+  - Transform: `elpi_intro_implies`
   - Behavior: repeatedly rewrites a goal `A -> B` into a local hypothesis `A`
     and a smaller goal `B`.
 
 - `examples/intros_full.elpi`
-  - Mode: `lp intros-full`
+  - Transform: `elpi_intros_full`
   - Behavior: repeatedly introduces top-level `forall` binders as fresh
     local variable declarations and top-level implications as local
     hypotheses. This is a more
     faithful, but still lightweight, `intros` prototype.
 
 - `examples/split_goal_and.elpi`
-  - Mode: `lp split-goal-and`
+  - Transform: `elpi_split_goal_and`
   - Behavior: splits top-level goal conjunctions `A /\\ B` into multiple
     output tasks (one conjunct per task).
 
 - `examples/drop_non_goal_props.elpi`
-  - Mode: `lp drop-non-goal-props`
+  - Transform: `elpi_drop_non_goal_props`
   - Behavior: keeps goals and non-proposition declarations, drops
     lemmas/axioms.
 
 - `examples/apply_lite.elpi`
-  - Modes:
-    - `lp apply-lite`
-    - `lp apply-lite-by:H`
-    - `lp apply-lite-with:H:c1:c2:...`
+  - Transforms:
+    - `elpi_apply_lite`
+    - `elpi_apply_lite_by H`
   - Behavior: tactic-like `apply` prototype.
     - `apply-lite` uses the first matching non-quantified axiom/lemma.
-    - `apply-lite-by:H` selects a specific axiom/lemma by proposition name.
-    - `apply-lite-with:H:c1:c2:...` instantiates leading `forall` binders of
-      proposition `H` using named 0-ary constants `c1`, `c2`, ... before
-      generating premise goals.
+    - `elpi_apply_lite_by H` resolves `H` through Why3's typed transformation
+      argument machinery first, so the ELPI code receives the selected
+      `prsymbol` directly rather than recovering it from a string name.
+
+- `examples/exists_term.elpi`
+  - Transform: `elpi_exists_term T`
+  - Behavior: instantiates the top-level existential in the current goal with
+    an explicit Why3 term `T` parsed by Why3 before entering ELPI. Because the
+    transformation CLI still forwards one raw argument string to the wrapper
+    layer, simple term syntax is currently the most ergonomic here.
 
 - `examples/tc.elpi`
-  - Mode: `lp tc`
+  - Transform: `elpi_tc`
   - Behavior: compiles `[@class]` and `[@instance]` declarations into a small
     witness-synthesis engine for existential goals. The paired examples in
     `tests/tc.mlw` and `tests/tc_complex.mlw` show both a baseline usage and a
     deeper nested-resolution showcase.
 
 - `examples/derive.elpi`
-  - Modes:
-    - `lp derive`
-    - `lp derive-eq`
-    - `lp derive-ord`
+  - Transforms:
+    - `elpi_derive`
+    - `elpi_derive_eq`
+    - `elpi_derive_ord`
   - Behavior: structurally synthesizes `eq` and `ord` witnesses from the
     requested target type shape by composing helper combinators already present
     in the Why3 task. Unlike `tc.elpi`, it does not inspect `[@instance]`
@@ -102,14 +111,14 @@ API showcase transforms:
 Run one example with:
 
 ```bash
-WHY3_ELPI_PROGRAM=examples/intro_implies.elpi \
-  why3 prove tests/simple.mlw --extra-config why3extra.conf -D why3 -a "lp intro-implies"
+why3 prove tests/simple.mlw --extra-config why3extra.conf -D why3 -a "elpi_intro_implies"
 ```
 
-Swap the file and mode string to run the other examples.
+Swap the transformation name to run the other examples.
 
-Then, in order to execute the Elpi code present in `transform.elpi` on all the tasks
-contained in the Why3 file `tests/simple.mlw` and have Why3 print the resulting tasks run:
+For ad hoc local development, you can still execute the Elpi code present in
+`transform.elpi` on all the tasks contained in the Why3 file `tests/simple.mlw`
+and have Why3 print the resulting tasks by running:
 ```bash
 dune exec -- why3 prove tests/simple.mlw --extra-config why3extra.conf -D why3 -a "lp param"
 ```
@@ -119,8 +128,9 @@ This loads `transform.elpi` and calls the query
 use to pass arguments to the Elpi code, `Rest` is unified with the non-goal
 declarations of the current task, `Goal` is unified with the focused goal
 representation, and `Tasks` is the list of resulting `focused-task` values that
-the Elpi code should build. The HOAS encoding of these objects is illustrated
-in [w3lp.elpi](w3lp.elpi).
+the Elpi code should build. For the bundled examples above, prefer the named
+`elpi_*` wrappers instead. The HOAS encoding of these objects is illustrated in
+[w3lp.elpi](w3lp.elpi).
 
 Term attributes are represented with a dedicated `tattr` constructor that
 wraps a term: `tattr Attrs T`. Build abstract Why3 attributes with `why3.attr`,
@@ -161,16 +171,21 @@ If code in `transform.elpi` uses `{{why3:...}}`, the plugin currently raises a c
 To use the transformation globally, add to `why3.conf` the line
 
 ```
-plugin="/path/to/why3-elpi/_build/default/bin/why3_elpi_trans"
+plugin="/path/to/why3-elpi/_build/default/bin/why3_elpi_transformations"
 ```
 
-You will have a new `lp` transformation available. Calling `lp param` will look
-for a `transform.elpi` file, load it, and execute the query
+You will have the dynamic `lp` transformation available, alongside the named
+`elpi_*` wrappers registered by the plugin. Calling `lp param` will look for a
+`transform.elpi` file, load it, and execute the query
 `w3_transform "param" Rest Goal TaskOut`. Here `param` is a string
 representing parameters one might want to pass to the Prolog code, `Rest` is
 the list of non-goal declarations, `Goal` is the focused goal representation,
 and `TaskOut` is the list of resulting focused tasks the transformation should
 build.
+
+If a transform needs typed Why3 objects rather than raw strings, add a
+dedicated OCaml wrapper with Why3's `Args_wrapper`; `lp` itself remains a
+string-based development entrypoint.
 
 Focused goals can reify local declarations during readback with the two
 builders `local-symbol` and `local-prop`, in addition to the terminal
@@ -184,11 +199,12 @@ For the common pattern of opening a forall as a local parameter, prefer the
 macro `@open-forall-local-param!`. If you need a fresh `var` handle for an ad
 hoc `pi x\ ctx-vs x V => ...` context, use `why3.mk-var Name Ty V`.
 
-For example, the transformation `lp intros-full-local`, that creates local
+For example, the dynamic form underlying the bundled
+`elpi_intros_full_local` wrapper, which creates local
 declarations for every implication and universal quantification in the head of a
 goal, can be written in this way:
 ```
-w3_transform "intros-full-local" Rest (goal-formula GoalPr Goal)
+w3_transform _ Rest (goal-formula GoalPr Goal)
              [focused-task Rest GoalOut] :-
   inspect GoalPr Goal GoalOut.
 
