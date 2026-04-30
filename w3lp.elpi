@@ -136,7 +136,7 @@ external symbol symbol-param : local-symbol-decl.
 external symbol symbol-logic : decl_body -> local-symbol-decl.
 % Symbol_logic
 
-% Focused Why3 goal: a goal formula together with its original goal symbol, plus optional local symbol declarations and local proposition declarations to reify as declarations during readback.
+% Focused Why3 goal: a goal formula together with its original goal symbol, plus optional local symbol declarations, local proposition declarations, and local type declarations to reify as declarations during readback.
 kind focused-goal type.
 external symbol goal-formula : prsymbol -> term -> focused-goal.
 % Goal_formula
@@ -144,6 +144,8 @@ external symbol local-symbol : lsymbol -> (term -> local-symbol-decl) -> (term -
 % Local_symbol
 external symbol local-prop : string -> term -> focused-goal -> focused-goal.
 % Local_prop
+external symbol local-type : tysymbol -> focused-goal -> focused-goal.
+% Local_type
 
 % References to Why3 global symbols defined by declarations.
 kind gref type.
@@ -207,9 +209,19 @@ kind env type.
 % name and type.
 external func why3.mk-var string, ty -> var.
 
-% [why3.mk-ls Name Args Result Ls] Create a fresh Why3 function symbol from
-% a printed name, argument types, and result type.
-external func why3.mk-ls string, list ty, ty -> lsymbol.
+% [why3.mk-tv Name Tv] Create a fresh Why3 type variable symbol from a
+% printed name.
+external func why3.mk-tv string -> tvsymbol.
+
+% [why3.mk-ts Name TvArgs Ts] Create a fresh abstract type symbol with the
+% given name and type-variable arguments. Pass [] for a monomorphic
+% (arity-0) type symbol.
+external func why3.mk-ts string, list tvsymbol -> tysymbol.
+
+% [why3.mk-ls Name Args Result Ls] Create a fresh Why3 logic symbol. When
+% Result is (some T) creates a function symbol with return type T; when
+% Result is none creates a predicate symbol (ls_value = None).
+external func why3.mk-ls string, list ty, option ty -> lsymbol.
 
 % [why3.var-name V Name] Project the printed name of a variable symbol.
 external func why3.var-name var -> string.
@@ -229,9 +241,12 @@ external func why3.prsymbol-attrs prsymbol -> list attribute.
 % [why3.ls-name Ls Name] Project the printed name of a logic symbol.
 external func why3.ls-name lsymbol -> string.
 
-% [why3.lsymbol-attrs Ls Attrs] Project the attributes attached to a logic
+% [why3.ls-attrs Ls Attrs] Project the attributes attached to a logic
 % symbol.
-external func why3.lsymbol-attrs lsymbol -> list attribute.
+external func why3.ls-attrs lsymbol -> list attribute.
+
+% [why3.ls-args Ls Args] Return the argument types of a logic symbol.
+external func why3.ls-args lsymbol -> list ty.
 
 % [why3.tysymbol-name Ts Name] Project the printed name of a type symbol.
 external func why3.tysymbol-name tysymbol -> string.
@@ -239,6 +254,17 @@ external func why3.tysymbol-name tysymbol -> string.
 % [why3.tysymbol-attrs Ts Attrs] Project the attributes attached to a type
 % symbol.
 external func why3.tysymbol-attrs tysymbol -> list attribute.
+
+% [why3.ts-args Ts TvArgs] Return the type variable arguments (ts_args) of a
+% type symbol.
+external func why3.ts-args tysymbol -> list tvsymbol.
+
+% [why3.tv-name Tv Name] Project the printed name of a type variable symbol.
+external func why3.tv-name tvsymbol -> string.
+
+% [why3.tv-attrs Tv Attrs] Project the attributes attached to a type variable
+% symbol.
+external func why3.tv-attrs tvsymbol -> list attribute.
 
 % [why3.var-type V T] Get the type of a variable
 external func why3.var-type var -> ty.
@@ -284,17 +310,12 @@ external func why3.pp-meta-arg meta-arg -> string.
 % [why3.pp-term T S] Convert a term to string using Why3's pretty printer
 external func why3.pp-term term -> string.
 
-% [why3.term-app F X FX] Build the higher-order application term F X using
-% Why3's infix_at.
-external func why3.term-app term, term -> term.
+% [why3.pp-ty T S] Convert a type to string using Why3's pretty printer.
+external func why3.pp-ty ty -> string.
 
-% [why3.term-app2 F X Y FXY] Build the higher-order application term F X Y
-% using Why3's infix_at.
-external func why3.term-app2 term, term, term -> term.
-
-% [why3.lsymbol-full-type Ls Ty] Get the full arrow type of a logic symbol:
+% [why3.ls-full-type Ls Ty] Get the full arrow type of a logic symbol:
 % arg1 -> ... -> argN -> result. Fails for predicates (no value type).
-external func why3.lsymbol-full-type lsymbol -> ty.
+external func why3.ls-full-type lsymbol -> ty.
 
 % [why3.decl-data-constructors D Ctors] If D is a Ddata declaration, return
 % the list of (constructor, projections) pairs. Each projection list entry
@@ -307,27 +328,27 @@ external func why3.decl-data-constructors decl -> list (pair lsymbol (list (opti
 
 % [w3-ls-of-var! V Ls] Allocate a fresh lsymbol whose name and type are taken
 % from variable symbol V. Shorthand for the three-step
-%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls
+%   why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] (some Ty) Ls
 % preamble needed before introducing a local constant.
 macro @w3-ls-of-var! V Ls :-
-  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] Ty Ls.
+  why3.var-name V Name, why3.var-type V Ty, why3.mk-ls Name [] (some Ty) Ls.
 
 
 
 % [@pi-local-param! Ls GoalOut Next F] Build a local-symbol node for the
-% uninterpreted constant Ls, bind a fresh ELPI nominal `self` for it in
-% ctx-ls, and run F self.  GoalOut is unified with the focused-goal wrapper
+% uninterpreted constant Ls, bind a fresh ELPI nominal `x` for it in
+% ctx-ls, and evaluate F x.  GoalOut is unified with the focused-goal wrapper
 % and Next is the continuation binder.  Mirrors the coq-elpi @pi-decl macro.
 %
 % Typical usage for opening a forall as a local parameter:
 %
 %   inspect GoalPr (tquant tforall V Bnd) GoalOut :-
 %     @w3-ls-of-var! V Ls,
-%     @pi-local-param! Ls GoalOut Next (self\
-%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next self)).
+%     @pi-local-param! Ls GoalOut Next (x\
+%       inspect GoalPr (Bnd (tapp Ls [] none)) (Next x)).
 macro @pi-local-param! Ls GoalOut Next F :-
   GoalOut = local-symbol Ls (_\ symbol-param) Next,
-  pi self\ ctx-ls self Ls => F self.
+  pi x\ ctx-ls x Ls => F x.
 
 
 
@@ -335,7 +356,7 @@ macro @pi-local-param! Ls GoalOut Next F :-
 % the continuation binder from the caller. F receives InnerGoal: the
 % focused-goal hole to fill under the local-symbol wrapper.
 %
-% Note: `self` is a context token for ctx-ls lookup, not a term to embed.
+% Note: `x` is a context token for ctx-ls lookup, not a term to embed.
 % To open a binder body, keep using (tapp Ls [] none).
 %
 % Typical usage:
@@ -343,8 +364,8 @@ macro @pi-local-param! Ls GoalOut Next F :-
 %   @pi-local-param-goal! Ls GoalOut (InnerGoal\
 %     inspect GoalPr (Bnd (tapp Ls [] none)) InnerGoal).
 macro @pi-local-param-goal! Ls GoalOut F :-
-      GoalOut = local-symbol Ls (_\ symbol-param) (self\ Inner self),
-      pi self\ ctx-ls self Ls => F (Inner self).
+      GoalOut = local-symbol Ls (_\ symbol-param) (x\ Inner x),
+      pi x\ ctx-ls x Ls => F (Inner x).
 
 
 
@@ -366,7 +387,15 @@ macro @open-forall-local-param! V Bnd GoalOut F :-
     F (Bnd (tapp Ls [] none)) InnerGoal).
 
 
-external symbol w3_transform : string -> list tdecl -> focused-goal -> list focused-task -> prop.
+external symbol w3_run : list tdecl -> focused-goal -> list focused-task -> prop.
+
+external symbol w3_derive_eq : list tdecl -> focused-goal -> list focused-task -> prop.
+
+external symbol w3_derive_ord : list tdecl -> focused-goal -> list focused-task -> prop.
+
+external symbol w3_apply_lite_by : prsymbol -> list tdecl -> focused-goal -> list focused-task -> prop.
+
+external symbol w3_exists_term : term -> list tdecl -> focused-goal -> list focused-task -> prop.
 
 
 

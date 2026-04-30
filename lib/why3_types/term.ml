@@ -197,14 +197,6 @@ type decl_body =
 [@@elpi.type_doc "Opened declaration bodies. Use dabs for definition parameters and dterm for the final body term."]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<decl-body>"]
 
-type local_symbol_decl =
-  | Symbol_param
-  | Symbol_logic of decl_body
-[@@deriving elpi {declaration; context=[ctx_for_term; ctx_for_lsymbol];}]
-[@@elpi.type_code "local-symbol-decl"]
-[@@elpi.type_doc "Local symbol declarations. Use symbol-param for an uninterpreted local symbol and symbol-logic for a defined local body."]
-[@@elpi.pp fun fmt _ -> Format.fprintf fmt "<local-symbol-decl>"]
-
 let pp_attribute fmt attr =
   Format.fprintf fmt "%s" attr.Why3.Ident.attr_string
 
@@ -555,6 +547,14 @@ let open Elpi.API.ContextualConversion in
 type why_term = WTerm.term
 let why_term = term
 
+type local_symbol_decl =
+  | Symbol_param
+  | Symbol_logic of decl_body
+[@@deriving elpi {declaration; context=[ctx_for_term; ctx_for_lsymbol];}]
+[@@elpi.type_code "local-symbol-decl"]
+[@@elpi.type_doc "Local symbol declarations. Use symbol-param for an uninterpreted local symbol and symbol-logic for a defined local body."]
+[@@elpi.pp fun fmt _ -> Format.fprintf fmt "<local-symbol-decl>"]
+
 type focused_goal =
   | Goal_formula of WTerm.prsymbol * why_simple_term
   | Local_symbol of
@@ -562,9 +562,10 @@ type focused_goal =
       (local_symbol_decl [@elpi.binder "term" ctx_for_lsymbol (fun ls -> Ctx_ls ls)]) *
       (focused_goal [@elpi.binder "term" ctx_for_lsymbol (fun ls _decl -> Ctx_ls ls)])
   | Local_prop of string * why_simple_term * focused_goal
+  | Local_type of tysymbol * focused_goal
 [@@deriving elpi {declaration; context=[ctx_for_term; ctx_for_lsymbol]}]
 [@@elpi.type_code "focused-goal"]
-[@@elpi.type_doc "Focused Why3 goal: a goal formula together with its original goal symbol, plus optional local symbol declarations and local proposition declarations to reify as declarations during readback."]
+[@@elpi.type_doc "Focused Why3 goal: a goal formula together with its original goal symbol, plus optional local symbol declarations, local proposition declarations, and local type declarations to reify as declarations during readback."]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<focused-goal>"]
 
 let goal_decl_to_focused_goal (decl : Why3.Decl.decl) : focused_goal option =
@@ -599,6 +600,9 @@ let rec focused_goal_to_tdecls (goal : focused_goal) : Why3.Theory.tdecl list =
       let pr = Why3.Decl.create_prsymbol (Why3.Ident.id_fresh name) in
       Why3.Theory.create_decl
         (Why3.Decl.create_prop_decl Why3.Decl.Paxiom pr (simple_term_to_term premise))
+      :: focused_goal_to_tdecls body
+  | Local_type (ts, body) ->
+      Why3.Theory.create_decl (Why3.Decl.create_ty_decl ts)
       :: focused_goal_to_tdecls body
 
 let lsymbol = WTerm.lsymbol
