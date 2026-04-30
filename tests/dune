@@ -12,8 +12,6 @@
   ../examples/intro_implies.elpi
   ../examples/intros_full.elpi
   ../examples/intros_full_local.elpi
-  ../examples/local_logic.elpi
-  ../examples/local_logic_named.elpi
   ../examples/open_forall_ctx.elpi
   ../examples/rebuild_case.elpi
   ../examples/rebuild_case_as.elpi

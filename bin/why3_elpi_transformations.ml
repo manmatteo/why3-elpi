@@ -36,8 +36,6 @@ let file_transform_specs : (string * string * Pp.formatted) list =
     ("elpi_tc",                 "examples/tc.elpi",                    "Run@ the@ ELPI@ tc@ example.");
     ("elpi_derive",             "examples/derive.elpi",                "Run@ the@ ELPI@ derive@ example.");
     ("elpi_derive_eq_auto",     "examples/derive_eq.elpi",             "Run@ the@ ELPI@ derive-eq-auto@ example.");
-    ("elpi_local_logic",        "examples/local_logic.elpi",           "Run@ the@ ELPI@ local-logic@ example.");
-    ("elpi_local_logic_named",  "examples/local_logic_named.elpi",     "Run@ the@ ELPI@ local-logic-named@ example.");
     ("elpi_open_forall_ctx",    "examples/open_forall_ctx.elpi",       "Run@ the@ ELPI@ open-forall-ctx@ example.");
     ("elpi_rebuild_case",       "examples/rebuild_case.elpi",          "Run@ the@ ELPI@ rebuild-case@ example.");
     ("elpi_rebuild_case_as",    "examples/rebuild_case_as.elpi",       "Run@ the@ ELPI@ rebuild-case-as@ example.");
