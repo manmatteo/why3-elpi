@@ -11,18 +11,21 @@
       opam-nix,
       nixpkgs,
     }@inputs:
-    # Don't forget to put the package name instead of `throw':
     let
       package = "why3_elpi";
     in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
         on = opam-nix.lib.${system};
         devPackagesQuery = {
           ocaml-lsp-server = "*";
           ocamlformat = "*";
+          # alt-ergo = "*";
         };
         query = devPackagesQuery // {
           ocaml-base-compiler = "*";
@@ -58,6 +61,11 @@
           inputsFrom = [ main ];
           buildInputs = devPackages ++ [
             # You can add packages from nixpkgs here
+            pkgs.cvc5
+            pkgs.z3
+            pkgs.alt-ergo
+            # why3 with nix option "ideSupport" enabled
+            # (pkgs.why3.override { ideSupport = true; })
           ];
         };
       }
