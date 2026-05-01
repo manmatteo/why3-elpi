@@ -7,16 +7,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout tree
-      uses: actions/checkout@v4
-    - name: Set up OCaml
-      uses: ocaml/setup-ocaml@v3
-      with:
-        ocaml-compiler: 5.3
-        dune-cache: true
-    - name: Build
-      run: |
-        opam install . --deps-only
-        opam exec -- dune build
-    - name: Test
-      run: opam exec -- dune runtest
+      - name: Checkout tree
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v17
+
+      - name: Setup Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+
+      - name: Build
+        run: nix develop .#default --command dune build
+
+      - name: Test
+        run: nix develop .#default --command dune runtest
+
+      - name: Replay sessions
+        run: nix develop .#default --command dune build @tests/replay
