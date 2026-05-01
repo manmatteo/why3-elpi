@@ -82,6 +82,19 @@ for the bundled examples.
       argument machinery first, so the ELPI code receives the selected
       `prsymbol` directly rather than recovering it from a string name.
 
+- `examples/apply_ho.elpi`
+  - Transforms:
+    - `elpi_apply_ho H`
+    - `elpi_apply_ho H with t1, ..., tn`
+  - Behavior: higher-order `apply` prototype.
+    - Opens top-level `forall` binders with ELPI unification variables.
+    - Opens top-level `let` binders by substituting their bound term.
+    - `elpi_apply_ho` also allows explicit witness terms for the first
+      opened `forall` binders before falling back to unification on the
+      remaining binders.
+    - Uses the instantiated premises to discharge matching local hypotheses,
+      so it can apply lemmas that Why3's native `apply` rejects.
+
 - `examples/exists_term.elpi`
   - Transform: `elpi_exists_term T`
   - Behavior: instantiates the top-level existential in the current goal with

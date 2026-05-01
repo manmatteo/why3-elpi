@@ -1,6 +1,1 @@
-w3_transform "param" Rest Goal [focused-task Rest Goal].
-w3_transform "print" Rest Goal [focused-task Rest Goal] :-
-	print Rest,
-	print Goal.
-w3_transform "nop" Rest Goal [focused-task Rest Goal].
-w3_transform _ Rest Goal [focused-task Rest Goal].
+w3_run Rest Goal [focused-task Rest Goal].

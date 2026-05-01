@@ -262,8 +262,8 @@ external func why3.ts-args tysymbol -> list tvsymbol.
 % [why3.tv-name Tv Name] Project the printed name of a type variable symbol.
 external func why3.tv-name tvsymbol -> string.
 
-% [why3.tv-attrs Tv Attrs] Project the attributes attached to a type variable
-% symbol.
+% [why3.tv-attrs Tv Attrs] Project the attributes attached to a type
+% variable symbol.
 external func why3.tv-attrs tvsymbol -> list attribute.
 
 % [why3.var-type V T] Get the type of a variable
@@ -313,8 +313,8 @@ external func why3.pp-term term -> string.
 % [why3.pp-ty T S] Convert a type to string using Why3's pretty printer.
 external func why3.pp-ty ty -> string.
 
-% [why3.ls-full-type Ls Ty] Get the full arrow type of a logic symbol:
-% arg1 -> ... -> argN -> result. Fails for predicates (no value type).
+% [why3.ls-full-type Ls Ty] Get the full arrow type of a logic symbol: arg1
+% -> ... -> argN -> result. Fails for predicates (no value type).
 external func why3.ls-full-type lsymbol -> ty.
 
 % [why3.decl-data-constructors D Ctors] If D is a Ddata declaration, return
@@ -394,6 +394,8 @@ external symbol w3_derive_eq : list tdecl -> focused-goal -> list focused-task -
 external symbol w3_derive_ord : list tdecl -> focused-goal -> list focused-task -> prop.
 
 external symbol w3_apply_lite_by : prsymbol -> list tdecl -> focused-goal -> list focused-task -> prop.
+
+external symbol w3_apply_ho : prsymbol -> list term -> list tdecl -> focused-goal -> list focused-task -> prop.
 
 external symbol w3_exists_term : term -> list tdecl -> focused-goal -> list focused-task -> prop.
 
