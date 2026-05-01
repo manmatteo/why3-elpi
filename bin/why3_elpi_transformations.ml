@@ -1,25 +1,29 @@
 open Why3
-open Why3_elpi
 
 module T = Why3_elpi_trans
 
 let derive_eq_c =
-  declare_external_symbol
+  Why3_elpi.declare_external_symbol
     ~name:"w3_derive_eq"
     ~ty:"list tdecl -> focused-goal -> list focused-task -> prop"
 
 let derive_ord_c =
-  declare_external_symbol
+  Why3_elpi.declare_external_symbol
     ~name:"w3_derive_ord"
     ~ty:"list tdecl -> focused-goal -> list focused-task -> prop"
 
 let apply_lite_by_c =
-  declare_external_symbol
+  Why3_elpi.declare_external_symbol
     ~name:"w3_apply_lite_by"
     ~ty:"prsymbol -> list tdecl -> focused-goal -> list focused-task -> prop"
 
+let apply_ho_c =
+  Why3_elpi.declare_external_symbol
+    ~name:"w3_apply_ho"
+    ~ty:"prsymbol -> list term -> list tdecl -> focused-goal -> list focused-task -> prop"
+
 let exists_term_c =
-  declare_external_symbol
+  Why3_elpi.declare_external_symbol
     ~name:"w3_exists_term"
     ~ty:"term -> list tdecl -> focused-goal -> list focused-task -> prop"
 
@@ -58,18 +62,60 @@ let () =
     (fun (name, file, entrypoint, desc) -> T.register_transform ~name ~file ~entrypoint ~desc)
     entrypoint_transform_specs;
 
-  T.register_transform_with_arg
-    ~name:"elpi_apply_lite_by"
-    ~file:"examples/apply_lite.elpi"
-    ~entrypoint:apply_lite_by_c
-    ~embed:prsymbol.embed
-    ~arg_type:Args_wrapper.(Tprsymbol Ttrans_l)
-    ~desc:"Run@ the@ ELPI@ apply-lite@ example@ with@ a@ typed@ proposition@ symbol@ argument.";
+  let make_apply_ho target withed_terms_opt =
+    let withed_terms = Option.value ~default:[] withed_terms_opt in
+    let embeds =
+      [ (fun ~depth state ->
+            Why3_elpi.prsymbol.embed
+              ~depth [] Elpi.API.RawData.no_constraints state target);
+        (fun ~depth state ->
+            (Elpi_api_compat.BuiltInContextualData.list Why3_elpi.term).embed
+              ~depth [] Elpi.API.RawData.no_constraints state withed_terms);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/apply_ho.elpi"
+      ~entrypoint:apply_ho_c
+      embeds
+  in
+  T.register_transform_with_args
+    ~name:"elpi_apply_ho"
+    ~arg_type:Args_wrapper.(Tprsymbol (Topt ("with", Ttermlist Ttrans_l)))
+    ~desc:"Run@ the@ ELPI@ apply-ho@ tactic@ with@ a@ typed@ proposition@ symbol@ and@ optional@ witness@ terms@ (with@ t1,@ ...,@ tn)."
+    make_apply_ho;
 
-  T.register_transform_with_arg
+  let make_apply_lite_by target =
+    let embeds =
+      [ (fun ~depth state ->
+        Why3_elpi.prsymbol.embed
+          ~depth [] Elpi.API.RawData.no_constraints state target);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/apply_lite.elpi"
+      ~entrypoint:apply_lite_by_c
+      embeds
+  in
+  T.register_transform_with_args
+    ~name:"elpi_apply_lite_by"
+    ~arg_type:Args_wrapper.(Tprsymbol Ttrans_l)
+    ~desc:"Run@ the@ ELPI@ apply-lite@ example@ with@ a@ typed@ proposition@ symbol@ argument."
+    make_apply_lite_by;
+
+  let make_exists_term witness =
+    let embeds =
+      [ (fun ~depth state ->
+        Why3_elpi.term.embed
+          ~depth [] Elpi.API.RawData.no_constraints state witness);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/exists_term.elpi"
+      ~entrypoint:exists_term_c
+      embeds
+  in
+  T.register_transform_with_args
     ~name:"elpi_exists_term"
-    ~file:"examples/exists_term.elpi"
-    ~entrypoint:exists_term_c
-    ~embed:term.embed
     ~arg_type:Args_wrapper.(Tterm Ttrans_l)
     ~desc:"Run@ the@ ELPI@ exists-term@ example@ with@ a@ typed@ term@ argument."
+    make_exists_term
