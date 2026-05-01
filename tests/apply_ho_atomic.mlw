@@ -1,0 +1,10 @@
+module Test
+  use int.Int
+
+  predicate p int int int
+
+  axiom let_alias_tri : forall x y: int.
+    let a = y in let b = x in let c = b in p c a b
+
+  goal g : p 17 23 17
+end

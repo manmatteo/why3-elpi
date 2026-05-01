@@ -1,0 +1,12 @@
+module Test
+  use int.Int
+
+  predicate p int
+  predicate q int
+  predicate r int
+
+  axiom let_alias_imp : forall x: int.
+    let y = x in let z = y in q y -> r z -> p z
+
+  goal g : q 17 -> p 17
+end

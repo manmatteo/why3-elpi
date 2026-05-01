@@ -1,0 +1,11 @@
+use int.Int
+
+predicate nice (x: int) = 0 < x /\ x <= 100
+predicate reaches (x y: int)
+
+axiom nice_trans : forall x y: int. x <= y -> nice x -> nice y
+axiom reaches_trans : forall x y z: int. reaches x y -> reaches y z -> reaches x z
+
+goal g1 : nice 3 -> nice 7
+goal g2 : nice 10 -> nice 50 -> nice 10 /\ nice 50
+goal g3 : reaches 1 2 -> reaches 2 3 -> reaches 3 4 -> reaches 1 4

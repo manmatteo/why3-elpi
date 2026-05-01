@@ -5,6 +5,7 @@
   normalize_quantifiers
   check_open_term_attrs.elpi
   ../examples/apply_lite.elpi
+  ../examples/apply_ho.elpi
   ../examples/exists_term.elpi
   ../examples/derive.elpi
   ../examples/derive_eq.elpi
@@ -19,3 +20,23 @@
   ../examples/tc.elpi
   ../transform.elpi
   ../bin/why3_elpi_transformations.cmxs))
+
+(rule
+ (alias replay)
+ (deps
+  why3extra.test.conf
+  ../w3lp.elpi
+  ../transform.elpi
+  ../examples/apply_ho.elpi
+  sessions/search.mlw
+  sessions/search/why3session.xml
+  sessions/quicksort.mlw
+  sessions/quicksort/why3session.xml
+  sessions/drinker.mlw
+  sessions/drinker/why3session.xml
+  ../bin/why3_elpi_transformations.cmxs)
+ (action
+  (progn
+   (run why3 replay --extra-config why3extra.test.conf sessions/search)
+   (run why3 replay --extra-config why3extra.test.conf sessions/quicksort)
+   (run why3 replay --extra-config why3extra.test.conf sessions/drinker))))
