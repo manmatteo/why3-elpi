@@ -36,17 +36,24 @@ let register_transform ~name ~file ~entrypoint ~desc =
 		(state, query_term, [])
 	in
 	let trans = Trans.store (transform_query ~file build_entrypoint) in
-  (* Or maybe: use Args_wrapper with Ttrans_l in an attempt to unify with the other registration function?
-     But that didn't work *)
 	Trans.register_transform_l ~desc name trans
 
-let register_transform_with_arg ~name ~file ~entrypoint ~embed ~arg_type ~desc =
-	let make_trans arg =
-		Trans.store (transform_query ~file (fun ~depth state rest_t goal_t output_t ->
-			let state, arg_t, eg1 =
-				embed ~depth [] Elpi.API.RawData.no_constraints state arg in
-			let query_term =
-				Elpi.API.RawData.mkAppGlobalL entrypoint [arg_t; rest_t; goal_t; output_t] in
-			(state, query_term, eg1)))
-	in
+let register_transform_with_args ~name ~arg_type ~desc make_trans =
 	Args_wrapper.wrap_and_register ~desc name arg_type make_trans
+
+let build_transform_with_embedded_args ~file ~entrypoint embeds =
+	let build_query ~depth state rest_t goal_t output_t =
+		let state, args_t, egs =
+			List.fold_left
+				(fun (state, args_t, egs) embed ->
+					let state, arg_t, eg = embed ~depth state in
+					(state, arg_t :: args_t, egs @ eg))
+				(state, [], []) embeds
+		in
+		let query_term =
+			Elpi.API.RawData.mkAppGlobalL entrypoint
+				(List.rev_append args_t [rest_t; goal_t; output_t])
+		in
+		(state, query_term, egs)
+	in
+	Trans.store (transform_query ~file build_query)

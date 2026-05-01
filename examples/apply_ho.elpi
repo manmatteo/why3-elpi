@@ -1,0 +1,108 @@
+% apply_ho: apply tactic using ELPI's higher-order unification over HOAS binders.
+%
+% Unlike apply_lite (which only handles ground implications), this tactic peels
+% forall binders by opening them with a fresh ELPI unification variable X per
+% quantifier, and it also opens top-level let-binders by substituting their
+% bound term through the body. ELPI's unification then instantiates X when the
+% lemma conclusion is matched against the current goal, and discharge-premises
+% uses the resulting bindings to eliminate hypotheses from the open premise list.
+%
+% Example: lemma  nice_trans : forall x y. x <= y -> nice x -> nice y
+%          goal   nice 3 -> nice 7
+%   open-and-match instantiates y=7 from the conclusion, then
+%   discharge-premises matches "nice x" against hypothesis "nice 3" → x=3,
+%   leaving the single subgoal  3 <= 7.
+%
+% Registered Why3 wrapper:  elpi_apply_ho <prop> [with] <term list>
+
+w3_apply_ho Target [] Rest Goal OutTasks :-
+  focused-goal-shape Goal GoalPr GoalTerm LocalHyps,
+  goal-shape GoalTerm GoalImpHyps GoalConclusion,
+  std.append LocalHyps GoalImpHyps GoalHyps,
+  find-lemma Rest Target LemmaT,
+  open-and-match LemmaT GoalConclusion LemmaPremises,
+  discharge-premises LemmaPremises GoalHyps OpenPremises,
+  premises-to-tasks GoalPr Rest GoalHyps OpenPremises OutTasks.
+
+w3_apply_ho Target WithTerms Rest Goal OutTasks :-
+  WithTerms = [_ | _],
+  focused-goal-shape Goal GoalPr GoalTerm LocalHyps,
+  goal-shape GoalTerm GoalImpHyps GoalConclusion,
+  std.append LocalHyps GoalImpHyps GoalHyps,
+  find-lemma Rest Target LemmaT,
+  open-foralls-and-lets LemmaT ForallVars OpenedLemma,
+  open-and-match OpenedLemma GoalConclusion LemmaPremises,
+  instantiate-with ForallVars WithTerms,
+  premises-to-tasks GoalPr Rest GoalHyps LemmaPremises OutTasks.
+
+w3_apply_ho _ _ Rest Goal [focused-task Rest Goal].
+
+pred goal-shape i:term, o:list term, o:term.
+goal-shape (tattr _ T) Hs C :- goal-shape T Hs C.
+goal-shape (ttrigger _ T) Hs C :- goal-shape T Hs C.
+goal-shape (tbinop timplies H Rest) [H | Hs] C :- !, goal-shape Rest Hs C.
+goal-shape T [] T.
+
+pred focused-goal-shape i:focused-goal, o:prsymbol, o:term, o:list term.
+focused-goal-shape (local-prop _ H Goal) Pr T [H | Hs] :-
+  focused-goal-shape Goal Pr T Hs.
+focused-goal-shape (goal-formula Pr T) Pr T [].
+
+pred open-and-match i:term, i:term, o:list term.
+open-and-match L (tattr _ G) Ps :- open-and-match L G Ps.
+open-and-match L (ttrigger _ G) Ps :- open-and-match L G Ps.
+open-and-match L (tquant texists _ Bnd) Ps :- open-and-match L (Bnd X_) Ps.
+open-and-match (tattr _ T) G Ps :- open-and-match T G Ps.
+open-and-match (ttrigger _ T) G Ps :- open-and-match T G Ps.
+open-and-match (tquant tforall _ Bnd) G Ps :- open-and-match (Bnd X_) G Ps.
+open-and-match (tquant texists _ Bnd) G Ps :- open-and-match (Bnd X_) G Ps.
+open-and-match (tlet T _ Bnd) G Ps :- open-and-match (Bnd T) G Ps.
+open-and-match (tbinop timplies P Tail) G [P | Ps] :- open-and-match Tail G Ps.
+open-and-match G G [].
+
+pred open-foralls-and-lets i:term, o:list term, o:term.
+open-foralls-and-lets (tattr _ T) Vs Out :- open-foralls-and-lets T Vs Out.
+open-foralls-and-lets (ttrigger _ T) Vs Out :- open-foralls-and-lets T Vs Out.
+open-foralls-and-lets (tlet T _ Bnd) Vs Out :- open-foralls-and-lets (Bnd T) Vs Out.
+open-foralls-and-lets (tquant tforall _ Bnd) [X_ | Vs] Out :-
+  open-foralls-and-lets (Bnd X_) Vs Out.
+open-foralls-and-lets T [] T.
+
+pred instantiate-with i:list term, i:list term.
+instantiate-with _ [].
+instantiate-with [V | Vs] [T | Ts] :-
+  V = T,
+  !,
+  instantiate-with Vs Ts.
+instantiate-with [_ | Vs] Ts :-
+  instantiate-with Vs Ts.
+
+pred discharge-premises i:list term, i:list term, o:list term.
+discharge-premises [] _ [].
+discharge-premises [P | Ps] Hyps Out :-
+  std.mem Hyps P, !,
+  discharge-premises Ps Hyps Out.
+discharge-premises [P | Ps] Hyps [P | Out] :-
+  discharge-premises Ps Hyps Out.
+
+pred find-lemma i:list tdecl, i:prsymbol, o:term.
+find-lemma [decl D | _] Target T :-
+  why3.decl-kind D decl-prop,
+  why3.decl-defines D Refs,
+  std.mem Refs (gpr Target),
+  why3.decl-body D (gpr Target) (dterm T).
+find-lemma [_ | Rest] Target T :- find-lemma Rest Target T.
+
+pred wrap-local-props i:list term, i:focused-goal, o:focused-goal.
+wrap-local-props [] Goal Goal.
+wrap-local-props [H | Hs] Goal (local-prop "hyp" H Wrapped) :-
+  wrap-local-props Hs Goal Wrapped.
+
+pred premises-to-tasks i:prsymbol, i:list tdecl, i:list term, i:list term,
+  o:list focused-task.
+premises-to-tasks _ _ _ [] [].
+premises-to-tasks GoalPr Ctx GoalHyps [P | Ps]
+    [focused-task Ctx GoalOut | Out] :-
+  wrap-local-props GoalHyps (goal-formula GoalPr P) GoalOut,
+  premises-to-tasks GoalPr Ctx GoalHyps Ps Out.
+
