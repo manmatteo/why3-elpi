@@ -34,7 +34,6 @@ val split_focused_goal : Why3.Task.task -> (Why3.Theory.tdecl list * focused_goa
 (** Runtime: ELPI program loading and query execution *)
 val register_builtin_declaration : Elpi.API.BuiltIn.declaration -> unit
 val declare_external_symbol : name:string -> ty:string -> Elpi.API.RawData.constant
-val resolve_program_file : string -> string
 val get_program : file:string -> Elpi.API.Setup.elpi * Elpi.API.Compile.program
 val run_query_with :
   Elpi.API.Compile.program ->

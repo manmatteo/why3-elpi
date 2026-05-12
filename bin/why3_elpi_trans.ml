@@ -1,16 +1,13 @@
-open Why3
-open Why3_elpi
-
 let run_c =
-	declare_external_symbol
+	Why3_elpi.declare_external_symbol
 		~name:"w3_run"
 		~ty:"list tdecl -> focused-goal -> list focused-task -> prop"
 
-let transform_query ~file build_query (t : Task.task) =
-	let file = resolve_program_file file in
-	let _elpi, prog = get_program ~file in
-	match split_focused_goal t with
-	| None -> Loc.errorm "elpi: transform interface requires a task with a goal"
+let transform_query ~file build_query (t : Why3.Task.task) =
+	let open Why3_elpi in
+	let _elpi, prog = Why3_elpi.get_program ~file in
+	match Why3_elpi.split_focused_goal t with
+	| None -> Why3.Loc.errorm "elpi: transform interface requires a task with a goal"
 	| Some (rest, goal) ->
 		match run_query_with prog (fun state ->
 			let depth = 0 in
@@ -26,20 +23,17 @@ let transform_query ~file build_query (t : Task.task) =
 			let state, query_term, eg3 = build_query ~depth state rest_t goal_t output_t in
 			(state, query_term, eg1 @ eg2 @ eg3)) focused_task with
 		| Some out_task -> out_task
-		| None -> Loc.errorm "elpi: failure"
+		| None -> Why3.Loc.errorm "elpi: failure"
 
 let register_transform ~name ~file ~entrypoint ~desc =
-	let build_entrypoint ~depth:_ state rest_t goal_t output_t =
+	let build_query ~depth:_ state rest_t goal_t output_t =
 		let query_term =
 			Elpi.API.RawData.mkAppGlobalL entrypoint [rest_t; goal_t; output_t]
 		in
 		(state, query_term, [])
 	in
-	let trans = Trans.store (transform_query ~file build_entrypoint) in
-	Trans.register_transform_l ~desc name trans
-
-let register_transform_with_args ~name ~arg_type ~desc make_trans =
-	Args_wrapper.wrap_and_register ~desc name arg_type make_trans
+	let trans = Why3.Trans.store (transform_query ~file build_query) in
+	Why3.Trans.register_transform_l ~desc name trans
 
 let build_transform_with_embedded_args ~file ~entrypoint embeds =
 	let build_query ~depth state rest_t goal_t output_t =
@@ -56,4 +50,7 @@ let build_transform_with_embedded_args ~file ~entrypoint embeds =
 		in
 		(state, query_term, egs)
 	in
-	Trans.store (transform_query ~file build_query)
+	Why3.Trans.store (transform_query ~file build_query)
+
+let register_transform_with_args ~name ~arg_type ~desc make_trans =
+	Why3.Args_wrapper.wrap_and_register ~desc name arg_type make_trans
