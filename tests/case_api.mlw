@@ -1,0 +1,8 @@
+module CaseApi
+
+  predicate p
+  predicate q
+
+  goal split_case : q
+
+end

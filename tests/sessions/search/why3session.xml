@@ -89,9 +89,9 @@
   <proof prover="0"><result status="valid" time="0.029725" steps="8"/></proof>
   </goal>
   <goal name="bfs&#39;vc.16" expl="postcondition">
-  <transf name="case" arg1="(path start t n)">
+    <transf name="elpi_case" arg1="(path start t n)">
    <goal name="bfs&#39;vc.16.0" expl="true case (postcondition)">
-   <transf name="assert" arg1="(exists s. path start s p)">
+  <transf name="elpi_assert" arg1="(exists s. path start s p)">
     <goal name="bfs&#39;vc.16.0.0" expl="asserted formula">
     <transf name="elpi_apply_ho" arg1="shorter_path" arg2="with" arg3="t,n">
      <goal name="bfs&#39;vc.16.0.0.0" expl="apply premises">
