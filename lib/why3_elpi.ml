@@ -36,11 +36,6 @@ let register_builtin_declaration decl =
   extra_builtin_declarations := decl :: !extra_builtin_declarations;
   cached_program := None
 
-let resolve_program_file file =
-  let candidates = [file; Filename.concat ".." file] in
-  match List.find_opt Sys.file_exists candidates with
-  | Some path -> path
-  | None -> file
 
 let elpi_builtins () =
   let builtins =
@@ -52,6 +47,12 @@ let elpi_builtins () =
   ]
 
 let get_program ~file =
+  let file =
+    let candidates = [file; Filename.concat ".." file] in
+    match List.find_opt Sys.file_exists candidates with
+    | Some path -> path
+    | None -> file
+  in
   match !cached_program with
   | Some (cached_file, elpi, prog) when cached_file = file -> (elpi, prog)
   | _ ->
@@ -87,7 +88,7 @@ let read_output_tasks conv state output_term =
       List.iteri
         (fun i task_tm ->
           try
-            let _st, _task, _eg = conv.readback ~depth:0 [] API.RawData.no_constraints state task_tm in
+            let _ = conv.readback ~depth:0 [] API.RawData.no_constraints state task_tm in
             ()
           with task_exn ->
             Format.eprintf "elpi: failing transformed task at index %d: %s\n%!"
