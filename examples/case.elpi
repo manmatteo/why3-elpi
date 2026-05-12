@@ -1,0 +1,10 @@
+% Split the current goal into two branches by assuming either Cond or not Cond.
+
+w3_run Rest Goal [focused-task Rest Goal].
+
+w3_case Cond Rest (goal-formula GoalPr Goal)
+    [ focused-task Rest (local-prop "h" Cond (goal-formula GoalPr Goal))
+    , focused-task Rest (local-prop "h" (tnot Cond) (goal-formula GoalPr Goal))
+    ].
+
+w3_case _ Rest Goal [focused-task Rest Goal].
