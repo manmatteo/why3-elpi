@@ -6,6 +6,9 @@
   check_open_term_attrs.elpi
   ../examples/apply_lite.elpi
   ../examples/apply_ho.elpi
+  ../examples/assert.elpi
+  ../examples/case.elpi
+  ../examples/destruct.elpi
   ../examples/exists_term.elpi
   ../examples/derive.elpi
   ../examples/derive_eq.elpi
@@ -28,6 +31,8 @@
   ../w3lp.elpi
   ../transform.elpi
   ../examples/apply_ho.elpi
+  ../examples/assert.elpi
+  ../examples/destruct.elpi
   sessions/search.mlw
   sessions/search/why3session.xml
   sessions/quicksort.mlw
