@@ -27,6 +27,21 @@ let exists_term_c =
     ~name:"w3_exists_term"
     ~ty:"term -> list tdecl -> focused-goal -> list focused-task -> prop"
 
+let case_c =
+  Why3_elpi.declare_external_symbol
+    ~name:"w3_case"
+    ~ty:"term -> list tdecl -> focused-goal -> list focused-task -> prop"
+
+let assert_c =
+  Why3_elpi.declare_external_symbol
+    ~name:"w3_assert"
+    ~ty:"term -> list tdecl -> focused-goal -> list focused-task -> prop"
+
+let destruct_c =
+  Why3_elpi.declare_external_symbol
+    ~name:"w3_destruct"
+    ~ty:"prsymbol -> list tdecl -> focused-goal -> list focused-task -> prop"
+
 (* Registration tables *)
 
 let file_transform_specs : (string * string * Pp.formatted) list =
@@ -118,4 +133,64 @@ let () =
     ~name:"elpi_exists_term"
     ~arg_type:Args_wrapper.(Tterm Ttrans_l)
     ~desc:"Run@ the@ ELPI@ exists-term@ example@ with@ a@ typed@ term@ argument."
-    make_exists_term
+    make_exists_term;
+
+  T.register_transform_with_args
+    ~name:"elpi_exists"
+    ~arg_type:Args_wrapper.(Tterm Ttrans_l)
+    ~desc:"Run@ the@ ELPI@ exists@ example@ with@ a@ typed@ witness@ term@ argument."
+    make_exists_term;
+
+  let make_case cond =
+    let embeds =
+      [ (fun ~depth state ->
+        Why3_elpi.term.embed
+          ~depth [] Elpi.API.RawData.no_constraints state cond);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/case.elpi"
+      ~entrypoint:case_c
+      embeds
+  in
+  T.register_transform_with_args
+    ~name:"elpi_case"
+    ~arg_type:Args_wrapper.(Tformula Ttrans_l)
+    ~desc:"Run@ the@ ELPI@ case@ example@ with@ a@ typed@ formula@ argument."
+    make_case;
+
+  let make_assert cond =
+    let embeds =
+      [ (fun ~depth state ->
+        Why3_elpi.term.embed
+          ~depth [] Elpi.API.RawData.no_constraints state cond);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/assert.elpi"
+      ~entrypoint:assert_c
+      embeds
+  in
+  T.register_transform_with_args
+    ~name:"elpi_assert"
+    ~arg_type:Args_wrapper.(Tformula Ttrans_l)
+    ~desc:"Run@ the@ ELPI@ assert@ example@ with@ a@ typed@ formula@ argument."
+    make_assert;
+
+  let make_destruct target =
+    let embeds =
+      [ (fun ~depth state ->
+        Why3_elpi.prsymbol.embed
+          ~depth [] Elpi.API.RawData.no_constraints state target);
+      ]
+    in
+    T.build_transform_with_embedded_args
+      ~file:"examples/destruct.elpi"
+      ~entrypoint:destruct_c
+      embeds
+  in
+  T.register_transform_with_args
+    ~name:"elpi_destruct"
+    ~arg_type:Args_wrapper.(Tprsymbol Ttrans_l)
+    ~desc:"Run@ the@ ELPI@ destruct@ prototype@ on@ a@ selected@ local@ hypothesis@ symbol."
+    make_destruct

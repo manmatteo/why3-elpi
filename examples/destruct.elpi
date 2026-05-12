@@ -1,0 +1,122 @@
+% Destruct a selected local hypothesis by name.
+%
+% Supported top-level shapes on the selected hypothesis:
+% - exists x. P: introduce x as a local symbol and replace by P[x]
+% - A /\ B: replace by two local hypotheses A and B
+% - A \/ B: split into two focused tasks
+% - A -> B: split into premise-goal A and continuation with hypothesis B
+% If the selected hypothesis is not found or unsupported, the goal is unchanged.
+
+w3_run Rest Goal [focused-task Rest Goal].
+
+w3_destruct Target Rest Goal OutTasks :-
+  why3.prsymbol-name Target TargetName,
+  find-rest-prop Target Rest Hyp RestTail,
+  destruct-selected-rest TargetName Hyp RestTail Goal OutTasks,
+  !.
+
+w3_destruct Target Rest Goal OutTasks :-
+  why3.prsymbol-name Target TargetName,
+  destruct-goal-hit TargetName Goal OutGoals,
+  !,
+  std.map OutGoals (mk-task Rest) OutTasks.
+
+w3_destruct _ Rest Goal [focused-task Rest Goal].
+
+pred mk-task i:list tdecl, i:focused-goal, o:focused-task.
+mk-task Rest Goal (focused-task Rest Goal).
+
+pred destruct-goal-hit i:string, i:focused-goal, o:list focused-goal.
+destruct-goal-hit TargetName (local-prop Name Hyp Tail) OutGoals :-
+  Name = TargetName,
+  !,
+  destruct-selected Name Hyp Tail OutGoals.
+destruct-goal-hit TargetName (local-prop Name Hyp Tail) OutGoals :-
+  destruct-goal-hit TargetName Tail TailGoals,
+  std.map TailGoals (wrap-local Name Hyp) OutGoals.
+
+pred wrap-local i:string, i:term, i:focused-goal, o:focused-goal.
+wrap-local Name Hyp Tail (local-prop Name Hyp Tail).
+
+pred find-rest-prop i:prsymbol, i:list tdecl, o:term, o:list tdecl.
+find-rest-prop Target [decl D | Tail] Hyp Tail :-
+  why3.decl-kind D decl-prop,
+  why3.decl-defines D Refs,
+  std.mem Refs (gpr Target),
+  why3.decl-body D (gpr Target) (dterm Hyp).
+find-rest-prop Target [Td | Tail] Hyp [Td | RestOut] :-
+  find-rest-prop Target Tail Hyp RestOut.
+
+pred destruct-selected-rest i:string, i:term, i:list tdecl, i:focused-goal, o:list focused-task.
+destruct-selected-rest Name Hyp Tail Goal [focused-task Tail GoalOut] :-
+  hyp-exists Hyp V Bnd,
+  !,
+  why3.var-name V FreshName,
+  why3.var-type V FreshTy,
+  why3.mk-ls FreshName [] (some FreshTy) Ls,
+  @pi-local-param-goal! Ls GoalOut (InnerGoal\
+    InnerGoal = local-prop Name (Bnd (tapp Ls [] none)) Goal).
+destruct-selected-rest Name Hyp Tail Goal [focused-task Tail (local-prop Name A (local-prop Name B Goal))] :-
+  hyp-and Hyp A B,
+  !.
+destruct-selected-rest Name Hyp Tail Goal [focused-task Tail (local-prop Name A Goal), focused-task Tail (local-prop Name B Goal)] :-
+  hyp-or Hyp A B,
+  !.
+destruct-selected-rest Name Hyp Tail Goal [focused-task Tail PremGoal, focused-task Tail (local-prop Name Conseq Goal)] :-
+  hyp-implies Hyp Prem Conseq,
+  !,
+  goal-with-term Goal Prem PremGoal.
+
+pred destruct-selected i:string, i:term, i:focused-goal, o:list focused-goal.
+destruct-selected Name Hyp Tail [GoalOut] :-
+  hyp-exists Hyp V Bnd,
+  !,
+  why3.var-name V FreshName,
+  why3.var-type V FreshTy,
+  why3.mk-ls FreshName [] (some FreshTy) Ls,
+  @pi-local-param-goal! Ls GoalOut (InnerGoal\
+    InnerGoal = local-prop Name (Bnd (tapp Ls [] none)) Tail).
+destruct-selected Name Hyp Tail [local-prop Name A (local-prop Name B Tail)] :-
+  hyp-and Hyp A B,
+  !.
+destruct-selected Name Hyp Tail [local-prop Name A Tail, local-prop Name B Tail] :-
+  hyp-or Hyp A B,
+  !.
+destruct-selected Name Hyp Tail [PremGoal, local-prop Name Conseq Tail] :-
+  hyp-implies Hyp Prem Conseq,
+  !,
+  goal-with-term Tail Prem PremGoal.
+destruct-selected Name Hyp Tail [local-prop Name Hyp Tail].
+
+pred goal-with-term i:focused-goal, i:term, o:focused-goal.
+goal-with-term (local-prop Name Hyp Tail) GoalTerm (local-prop Name Hyp TailOut) :-
+  goal-with-term Tail GoalTerm TailOut.
+goal-with-term (goal-formula GoalPr _) GoalTerm (goal-formula GoalPr GoalTerm).
+
+pred hyp-exists i:term, o:var, o:(term -> term).
+hyp-exists (tattr A T) V (x\ tattr A (Bnd x)) :-
+  hyp-exists T V Bnd.
+hyp-exists (ttrigger Tr T) V (x\ ttrigger Tr (Bnd x)) :-
+  hyp-exists T V Bnd.
+hyp-exists (tnot T) V Bnd :-
+  hyp-exists-not-forall T V Bnd.
+hyp-exists (tquant texists V Bnd) V Bnd.
+
+pred hyp-exists-not-forall i:term, o:var, o:(term -> term).
+hyp-exists-not-forall (tquant tforall V ForallBnd) V (x\ Bnd x) :-
+  ForallBnd X_ = tnot (Bnd X_).
+
+pred hyp-and i:term, o:term, o:term.
+hyp-and (tattr _ T) A B :- hyp-and T A B.
+hyp-and (ttrigger _ T) A B :- hyp-and T A B.
+hyp-and (tbinop tand A B) A B.
+
+pred hyp-or i:term, o:term, o:term.
+hyp-or (tattr _ T) A B :- hyp-or T A B.
+hyp-or (ttrigger _ T) A B :- hyp-or T A B.
+hyp-or (tbinop tor A B) A B.
+
+pred hyp-implies i:term, o:term, o:term.
+hyp-implies (tattr _ T) A B :- hyp-implies T A B.
+hyp-implies (ttrigger _ T) A B :- hyp-implies T A B.
+hyp-implies (tbinop timplies A B) A B.
