@@ -4,32 +4,11 @@ val declaration : Elpi.API.BuiltIn.declaration list
 val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
 val document : Elpi.API.BuiltIn.declaration list -> unit
 
-type ctx_for_term
-
-module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
-
-val ctx_for_term : (int * ctx_for_term, 'a, 'b) Elpi.API.ContextualConversion.t
-
-val context_made_of_ctx_for_term :
-  (ctx_for_term, Why3.Term.vsymbol, 'a) Elpi_api_compat.context
-
-val in_ctx_for_term :
-  ( Term.ctx_for_why_simple_term
-  , Elpi.API.Data.constraints )
-  Elpi_api_compat.ctx_readback
-
-val pp_ctx_for_term : Format.formatter -> ctx_for_term -> unit
-
 type focused_goal
 
 val focused_goal : (focused_goal, 'a, 'b) Elpi.API.ContextualConversion.t
 val goal_decl_to_focused_goal : Why3.Decl.decl -> focused_goal option
 val focused_goal_to_tdecls : focused_goal -> Why3.Theory.tdecl list
-
-val in_ctx_for_ty :
-  ( Ty.ctx_for_why_simple_ty
-  , Elpi.API.Data.constraints )
-  Elpi_api_compat.ctx_readback
 
 (* Embeddings of terms, types and tasks *)
 val attribute : (Why3.Ident.attribute, 'a, 'b) Elpi.API.ContextualConversion.t
@@ -55,11 +34,23 @@ val declare_external_symbol :
 
 val get_program : file:string -> Elpi.API.Setup.elpi * Elpi.API.Compile.program
 
-val run_query_with :
-     Elpi.API.Compile.program
-  -> (   Elpi.API.Data.state
+val register_transform :
+  name:string -> file:string -> entrypoint:int -> desc:Why3.Pp.formatted -> unit
+
+val register_transform_with_args :
+     name:string
+  -> arg_type:('a, 'b) Why3.Args_wrapper.trans_typ
+  -> desc:Why3.Pp.formatted
+  -> 'a
+  -> unit
+
+val build_transform_with_embedded_args :
+     file:string
+  -> entrypoint:int
+  -> (   depth:int
+      -> Elpi.API.Data.state
       -> Elpi.API.Data.state
          * Elpi.API.Data.term
-         * Elpi.API.Conversion.extra_goals)
-  -> ('a, 'b list, Elpi.API.Data.constraints) Elpi.API.ContextualConversion.t
-  -> 'a list option
+         * Elpi.API.Conversion.extra_goal list)
+     list
+  -> Why3.Task.task list Why3.Trans.trans
