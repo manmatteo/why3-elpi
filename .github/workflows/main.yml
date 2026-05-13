@@ -4,7 +4,7 @@ on:
     branches: [ main, ppx-elpi ]
   workflow_dispatch:
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tree
@@ -17,6 +17,9 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           use-flakehub: false
+
+      - name: Check formatting
+        run: nix fmt -- --ci
 
       - name: Build
         run: nix develop .#default --command dune build
