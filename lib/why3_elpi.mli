@@ -37,20 +37,10 @@ val get_program : file:string -> Elpi.API.Setup.elpi * Elpi.API.Compile.program
 val register_transform :
   name:string -> file:string -> entrypoint:int -> desc:Why3.Pp.formatted -> unit
 
-val register_transform_with_args :
+val build_and_register_transform_with_args :
      name:string
+  -> file:string
+  -> entrypoint:int
   -> arg_type:('a, 'b) Why3.Args_wrapper.trans_typ
   -> desc:Why3.Pp.formatted
-  -> 'a
   -> unit
-
-val build_transform_with_embedded_args :
-     file:string
-  -> entrypoint:int
-  -> (   depth:int
-      -> Elpi.API.Data.state
-      -> Elpi.API.Data.state
-         * Elpi.API.Data.term
-         * Elpi.API.Conversion.extra_goal list)
-     list
-  -> Why3.Task.task list Why3.Trans.trans
