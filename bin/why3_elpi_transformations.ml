@@ -1,5 +1,9 @@
 open Why3
-module T = Why3_elpi_trans
+module T = Why3_elpi
+
+let run_c =
+  Why3_elpi.declare_external_symbol ~name:"w3_run"
+    ~ty:"list tdecl -> focused-goal -> list focused-task -> prop"
 
 let derive_eq_c =
   Why3_elpi.declare_external_symbol ~name:"w3_derive_eq"
@@ -41,56 +45,56 @@ let entrypoint_transform_specs :
     (string * string * Elpi.API.RawData.constant * Pp.formatted) list =
   [ ( "elpi_nop"
     , "transform.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ identity@ ELPI@ transformation." )
   ; ( "elpi_intro_implies"
     , "examples/intro_implies.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ intro-implies@ example." )
   ; ( "elpi_intros_full"
     , "examples/intros_full.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ intros-full@ example." )
   ; ( "elpi_intros_full_local"
     , "examples/intros_full_local.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ intros-full-local@ example." )
   ; ( "elpi_split_goal_and"
     , "examples/split_goal_and.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ split-goal-and@ example." )
   ; ( "elpi_drop_non_goal_props"
     , "examples/drop_non_goal_props.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ drop-non-goal-props@ example." )
   ; ( "elpi_apply_lite"
     , "examples/apply_lite.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ apply-lite@ example." )
-  ; ("elpi_tc", "examples/tc.elpi", T.run_c, "Run@ the@ ELPI@ tc@ example.")
+  ; ("elpi_tc", "examples/tc.elpi", run_c, "Run@ the@ ELPI@ tc@ example.")
   ; ( "elpi_derive"
     , "examples/derive.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ derive@ example." )
   ; ( "elpi_derive_eq_auto"
     , "examples/derive_eq.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ derive-eq-auto@ example." )
   ; ( "elpi_open_forall_ctx"
     , "examples/open_forall_ctx.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ open-forall-ctx@ example." )
   ; ( "elpi_rebuild_case"
     , "examples/rebuild_case.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ rebuild-case@ example." )
   ; ( "elpi_rebuild_case_as"
     , "examples/rebuild_case_as.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ rebuild-case-as@ example." )
   ; ( "elpi_check_open_term_attrs"
     , "tests/check_open_term_attrs.elpi"
-    , T.run_c
+    , run_c
     , "Run@ the@ ELPI@ check-open-term-attrs@ test@ helper." )
   ; ( "elpi_derive_eq"
     , "examples/derive.elpi"

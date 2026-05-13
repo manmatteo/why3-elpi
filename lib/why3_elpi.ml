@@ -2,7 +2,6 @@ open Elpi
 include Term
 include Decl
 include Task
-open Env
 module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
 module Ctx_for_ctx_for_term = Term.Ctx_for_ctx_for_term
 module Ctx_for_ctx_for_lsymbol = Term.Ctx_for_ctx_for_lsymbol
@@ -12,8 +11,6 @@ let declaration : Elpi.API.BuiltIn.declaration list =
   !Ty.declaration @ !Term.declaration @ !Task.declaration
 
 let why3_builtin_declarations = Builtins.why3_builtin_declarations
-let in_ctx_for_term = Term.in_ctx_for_why_simple_term
-let in_ctx_for_ty = Ty.in_ctx_for_why_simple_ty
 let tdecl = Theory.tdecl
 let ty = Ty.ty
 
@@ -115,11 +112,64 @@ let declare_external_symbol ~name ~ty =
     (API.BuiltIn.LPCode (Printf.sprintf "external symbol %s : %s." name ty));
   API.RawData.Constants.declare_global_symbol name
 
-let run_query_with prog build_query output_conv =
-  let main_query = API.RawQuery.compile_raw_term prog build_query in
-  match API.Execute.once (API.Compile.optimize main_query) with
-  | API.Execute.Success { assignments; state; _ } ->
-    let output_term = API.Data.StrMap.find "Output" assignments in
-    Some (read_output_tasks output_conv state output_term)
-  | Failure -> None
-  | NoMoreSteps -> assert false
+let transform_query ~file build_query (t : Why3.Task.task) =
+  let _elpi, prog = get_program ~file in
+  match split_focused_goal t with
+  | None ->
+    Why3.Loc.errorm "elpi: transform interface requires a task with a goal"
+  | Some (rest, goal) -> (
+    let build_query state =
+      let depth = 0 in
+      let state, rest_t, eg1 =
+        (Elpi_api_compat.BuiltInContextualData.list Theory.tdecl).embed ~depth
+          [] Elpi.API.RawData.no_constraints state rest
+      in
+      let state, goal_t, eg2 =
+        focused_goal.embed ~depth [] Elpi.API.RawData.no_constraints state goal
+      in
+      let state, output_uvar =
+        Elpi.API.FlexibleData.Elpi.make ~name:"Output" state
+      in
+      let output_t = Elpi.API.RawData.mkUnifVar output_uvar ~args:[] state in
+      let state, query_term, eg3 =
+        build_query ~depth state rest_t goal_t output_t
+      in
+      (state, query_term, eg1 @ eg2 @ eg3)
+    in
+    let main_query = API.RawQuery.compile_raw_term prog build_query in
+    match API.Execute.once (API.Compile.optimize main_query) with
+    | API.Execute.Success { assignments; state; _ } ->
+      let output_term = API.Data.StrMap.find "Output" assignments in
+      read_output_tasks focused_task state output_term
+    | Failure -> Why3.Loc.errorm "elpi: failure"
+    | NoMoreSteps -> assert false)
+
+let register_transform ~name ~file ~entrypoint ~desc =
+  let build_query ~depth:_ state rest_t goal_t output_t =
+    let query_term =
+      Elpi.API.RawData.mkAppGlobalL entrypoint [ rest_t; goal_t; output_t ]
+    in
+    (state, query_term, [])
+  in
+  let trans = Why3.Trans.store (transform_query ~file build_query) in
+  Why3.Trans.register_transform_l ~desc name trans
+
+let build_transform_with_embedded_args ~file ~entrypoint embeds =
+  let build_query ~depth state rest_t goal_t output_t =
+    let state, args_t, egs =
+      List.fold_left
+        (fun (state, args_t, egs) embed ->
+          let state, arg_t, eg = embed ~depth state in
+          (state, arg_t :: args_t, egs @ eg))
+        (state, [], []) embeds
+    in
+    let query_term =
+      Elpi.API.RawData.mkAppGlobalL entrypoint
+        (List.rev_append args_t [ rest_t; goal_t; output_t ])
+    in
+    (state, query_term, egs)
+  in
+  Why3.Trans.store (transform_query ~file build_query)
+
+let register_transform_with_args ~name ~arg_type ~desc make_trans =
+  Why3.Args_wrapper.wrap_and_register ~desc name arg_type make_trans
