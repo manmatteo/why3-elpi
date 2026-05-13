@@ -108,10 +108,11 @@ let entrypoint_transform_specs :
 let () =
   List.iter
     (fun (name, file, entrypoint, desc) ->
-      Why3_elpi.register_transform ~name ~file ~entrypoint ~desc)
+      Why3_elpi.register_transform ~name ~file ~entrypoint
+        ~arg_type:Why3.Args_wrapper.Ttrans_l ~desc)
     entrypoint_transform_specs;
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_apply_ho"
+  Why3_elpi.register_transform ~name:"elpi_apply_ho"
     ~file:"examples/apply_ho.elpi"
     ~arg_type:Why3.Args_wrapper.(Tprsymbol (Topt ("with", Ttermlist Ttrans_l)))
     ~entrypoint:apply_ho_c
@@ -119,7 +120,7 @@ let () =
       "Run@ the@ ELPI@ apply-ho@ tactic@ with@ a@ typed@ proposition@ symbol@ \
        and@ optional@ witness@ terms@ (with@ t1,@ ...,@ tn).";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_apply_lite_by"
+  Why3_elpi.register_transform ~name:"elpi_apply_lite_by"
     ~file:"examples/apply_lite.elpi"
     ~arg_type:Why3.Args_wrapper.(Tprsymbol Ttrans_l)
     ~entrypoint:apply_lite_by_c
@@ -127,34 +128,31 @@ let () =
       "Run@ the@ ELPI@ apply-lite@ example@ with@ a@ typed@ proposition@ \
        symbol@ argument.";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_exists_term"
+  Why3_elpi.register_transform ~name:"elpi_exists_term"
     ~file:"examples/exists_term.elpi"
     ~arg_type:Why3.Args_wrapper.(Tterm Ttrans_l)
     ~entrypoint:exists_term_c
     ~desc:
       "Run@ the@ ELPI@ exists-term@ example@ with@ a@ typed@ term@ argument.";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_exists"
-    ~file:"examples/exists.elpi"
+  Why3_elpi.register_transform ~name:"elpi_exists" ~file:"examples/exists.elpi"
     ~arg_type:Why3.Args_wrapper.(Tterm Ttrans_l)
     ~entrypoint:exists_term_c
     ~desc:
       "Run@ the@ ELPI@ exists@ example@ with@ a@ typed@ witness@ term@ \
        argument.";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_case"
-    ~file:"examples/case.elpi"
+  Why3_elpi.register_transform ~name:"elpi_case" ~file:"examples/case.elpi"
     ~arg_type:Why3.Args_wrapper.(Tformula Ttrans_l)
     ~entrypoint:case_c
     ~desc:"Run@ the@ ELPI@ case@ example@ with@ a@ typed@ formula@ argument.";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_assert"
-    ~file:"examples/assert.elpi"
+  Why3_elpi.register_transform ~name:"elpi_assert" ~file:"examples/assert.elpi"
     ~arg_type:Why3.Args_wrapper.(Tformula Ttrans_l)
     ~entrypoint:assert_c
     ~desc:"Run@ the@ ELPI@ assert@ example@ with@ a@ typed@ formula@ argument.";
 
-  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_destruct"
+  Why3_elpi.register_transform ~name:"elpi_destruct"
     ~file:"examples/destruct.elpi"
     ~arg_type:Why3.Args_wrapper.(Tprsymbol Ttrans_l)
     ~entrypoint:destruct_c

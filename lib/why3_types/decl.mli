@@ -1,7 +1,10 @@
 val decl_declaration : Elpi.API.BuiltIn.declaration list ref
 val prsymbol : (Why3.Decl.prsymbol, 'a, 'b) Elpi.API.ContextualConversion.t
 
-type gref
+type gref =
+  | Gpr of Why3.Decl.prsymbol
+  | Gls of Why3.Term.lsymbol
+  | Gty of Why3.Ty.tysymbol
 
 val gref : (gref, 'a, 'b) Elpi.API.ContextualConversion.t
 

@@ -62,6 +62,7 @@ val readback_context :
 
 module BuiltInContextualData : sig
   val int : (int, 'c, 'csts) Elpi.API.ContextualConversion.t
+  val bool : (bool, 'c, 'csts) Elpi.API.ContextualConversion.t
   val float : (float, 'c, 'csts) Elpi.API.ContextualConversion.t
   val string : (string, 'c, 'csts) Elpi.API.ContextualConversion.t
 
