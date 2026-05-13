@@ -97,6 +97,15 @@ module BuiltInContextualData = struct
         (fun ~depth _ctx _csts s t -> BuiltInData.int.readback ~depth s t)
     }
 
+  let bool : (bool, 'ctx, 'csts) ContextualConversion.t =
+    { ContextualConversion.ty = Elpi.Builtin.bool.ty
+    ; pp_doc = Elpi.Builtin.bool.pp_doc
+    ; pp = Elpi.Builtin.bool.pp
+    ; embed = (fun ~depth _ctx _csts s x -> Elpi.Builtin.bool.embed ~depth s x)
+    ; readback =
+        (fun ~depth _ctx _csts s t -> Elpi.Builtin.bool.readback ~depth s t)
+    }
+
   let float : (float, 'ctx, 'csts) ContextualConversion.t =
     { ContextualConversion.ty = BuiltInData.float.ty
     ; pp_doc = BuiltInData.float.pp_doc

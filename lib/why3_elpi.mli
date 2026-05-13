@@ -35,9 +35,6 @@ val declare_external_symbol :
 val get_program : file:string -> Elpi.API.Setup.elpi * Elpi.API.Compile.program
 
 val register_transform :
-  name:string -> file:string -> entrypoint:int -> desc:Why3.Pp.formatted -> unit
-
-val build_and_register_transform_with_args :
      name:string
   -> file:string
   -> entrypoint:int
