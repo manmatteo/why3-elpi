@@ -1,6 +1,3 @@
-open Why3
-module T = Why3_elpi
-
 let run_c =
   Why3_elpi.declare_external_symbol ~name:"w3_run"
     ~ty:"list tdecl -> focused-goal -> list focused-task -> prop"
@@ -42,7 +39,7 @@ let destruct_c =
 (* Registration tables *)
 
 let entrypoint_transform_specs :
-    (string * string * Elpi.API.RawData.constant * Pp.formatted) list =
+    (string * string * Elpi.API.RawData.constant * Why3.Pp.formatted) list =
   [ ( "elpi_nop"
     , "transform.elpi"
     , run_c
@@ -111,113 +108,56 @@ let entrypoint_transform_specs :
 let () =
   List.iter
     (fun (name, file, entrypoint, desc) ->
-      T.register_transform ~name ~file ~entrypoint ~desc)
+      Why3_elpi.register_transform ~name ~file ~entrypoint ~desc)
     entrypoint_transform_specs;
 
-  let make_apply_ho target withed_terms_opt =
-    let withed_terms = Option.value ~default:[] withed_terms_opt in
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.prsymbol.embed ~depth [] Elpi.API.RawData.no_constraints
-            state target)
-      ; (fun ~depth state ->
-          (Elpi_api_compat.BuiltInContextualData.list Why3_elpi.term).embed
-            ~depth [] Elpi.API.RawData.no_constraints state withed_terms)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/apply_ho.elpi"
-      ~entrypoint:apply_ho_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_apply_ho"
-    ~arg_type:Args_wrapper.(Tprsymbol (Topt ("with", Ttermlist Ttrans_l)))
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_apply_ho"
+    ~file:"examples/apply_ho.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tprsymbol (Topt ("with", Ttermlist Ttrans_l)))
+    ~entrypoint:apply_ho_c
     ~desc:
       "Run@ the@ ELPI@ apply-ho@ tactic@ with@ a@ typed@ proposition@ symbol@ \
-       and@ optional@ witness@ terms@ (with@ t1,@ ...,@ tn)."
-    make_apply_ho;
+       and@ optional@ witness@ terms@ (with@ t1,@ ...,@ tn).";
 
-  let make_apply_lite_by target =
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.prsymbol.embed ~depth [] Elpi.API.RawData.no_constraints
-            state target)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/apply_lite.elpi"
-      ~entrypoint:apply_lite_by_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_apply_lite_by"
-    ~arg_type:Args_wrapper.(Tprsymbol Ttrans_l)
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_apply_lite_by"
+    ~file:"examples/apply_lite.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tprsymbol Ttrans_l)
+    ~entrypoint:apply_lite_by_c
     ~desc:
       "Run@ the@ ELPI@ apply-lite@ example@ with@ a@ typed@ proposition@ \
-       symbol@ argument."
-    make_apply_lite_by;
+       symbol@ argument.";
 
-  let make_exists_term witness =
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.term.embed ~depth [] Elpi.API.RawData.no_constraints state
-            witness)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/exists_term.elpi"
-      ~entrypoint:exists_term_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_exists_term"
-    ~arg_type:Args_wrapper.(Tterm Ttrans_l)
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_exists_term"
+    ~file:"examples/exists_term.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tterm Ttrans_l)
+    ~entrypoint:exists_term_c
     ~desc:
-      "Run@ the@ ELPI@ exists-term@ example@ with@ a@ typed@ term@ argument."
-    make_exists_term;
+      "Run@ the@ ELPI@ exists-term@ example@ with@ a@ typed@ term@ argument.";
 
-  T.register_transform_with_args ~name:"elpi_exists"
-    ~arg_type:Args_wrapper.(Tterm Ttrans_l)
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_exists"
+    ~file:"examples/exists.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tterm Ttrans_l)
+    ~entrypoint:exists_term_c
     ~desc:
       "Run@ the@ ELPI@ exists@ example@ with@ a@ typed@ witness@ term@ \
-       argument."
-    make_exists_term;
+       argument.";
 
-  let make_case cond =
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.term.embed ~depth [] Elpi.API.RawData.no_constraints state
-            cond)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/case.elpi"
-      ~entrypoint:case_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_case"
-    ~arg_type:Args_wrapper.(Tformula Ttrans_l)
-    ~desc:"Run@ the@ ELPI@ case@ example@ with@ a@ typed@ formula@ argument."
-    make_case;
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_case"
+    ~file:"examples/case.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tformula Ttrans_l)
+    ~entrypoint:case_c
+    ~desc:"Run@ the@ ELPI@ case@ example@ with@ a@ typed@ formula@ argument.";
 
-  let make_assert cond =
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.term.embed ~depth [] Elpi.API.RawData.no_constraints state
-            cond)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/assert.elpi"
-      ~entrypoint:assert_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_assert"
-    ~arg_type:Args_wrapper.(Tformula Ttrans_l)
-    ~desc:"Run@ the@ ELPI@ assert@ example@ with@ a@ typed@ formula@ argument."
-    make_assert;
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_assert"
+    ~file:"examples/assert.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tformula Ttrans_l)
+    ~entrypoint:assert_c
+    ~desc:"Run@ the@ ELPI@ assert@ example@ with@ a@ typed@ formula@ argument.";
 
-  let make_destruct target =
-    let embeds =
-      [ (fun ~depth state ->
-          Why3_elpi.prsymbol.embed ~depth [] Elpi.API.RawData.no_constraints
-            state target)
-      ]
-    in
-    T.build_transform_with_embedded_args ~file:"examples/destruct.elpi"
-      ~entrypoint:destruct_c embeds
-  in
-  T.register_transform_with_args ~name:"elpi_destruct"
-    ~arg_type:Args_wrapper.(Tprsymbol Ttrans_l)
+  Why3_elpi.build_and_register_transform_with_args ~name:"elpi_destruct"
+    ~file:"examples/destruct.elpi"
+    ~arg_type:Why3.Args_wrapper.(Tprsymbol Ttrans_l)
+    ~entrypoint:destruct_c
     ~desc:
       "Run@ the@ ELPI@ destruct@ prototype@ on@ a@ selected@ local@ \
        hypothesis@ symbol."
-    make_destruct

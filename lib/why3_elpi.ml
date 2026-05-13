@@ -171,5 +171,165 @@ let build_transform_with_embedded_args ~file ~entrypoint embeds =
   in
   Why3.Trans.store (transform_query ~file build_query)
 
-let register_transform_with_args ~name ~arg_type ~desc make_trans =
+let build_and_register_transform_with_args ~name ~file ~entrypoint ~arg_type
+    ~desc =
+  let open Why3.Args_wrapper in
+  let rec make : type a b.
+         acc:
+           (   depth:int
+            -> API.Data.state
+            -> API.Data.state * API.Data.term * API.Conversion.extra_goal list)
+           list
+      -> (a, b) trans_typ
+      -> a =
+   fun ~acc -> function
+     | Ttrans_l ->
+       build_transform_with_embedded_args ~file ~entrypoint (List.rev acc)
+     | Tenvtrans_l ->
+       fun _env ->
+         build_transform_with_embedded_args ~file ~entrypoint (List.rev acc)
+     | Ttrans ->
+       failwith
+         "build_and_register_transform_with_args: Ttrans not supported (use \
+          Ttrans_l)"
+     | Tenvtrans ->
+       fun _env ->
+         failwith
+           "build_and_register_transform_with_args: Tenvtrans not supported \
+            (use Tenvtrans_l)"
+     | Tprsymbol t ->
+       fun v ->
+         let embed ~depth state =
+           prsymbol.embed ~depth [] API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tterm t ->
+       fun v ->
+         let embed ~depth state =
+           term.embed ~depth [] API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tformula t ->
+       fun v ->
+         let embed ~depth state =
+           term.embed ~depth [] API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tlsymbol t ->
+       fun v ->
+         let embed ~depth state =
+           lsymbol.embed ~depth [] API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tprlist t ->
+       fun vs ->
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list prsymbol).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Ttermlist t ->
+       fun vs ->
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list term).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Ttermlist_same (_, t) ->
+       fun vs ->
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list term).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Tint t ->
+       fun v ->
+         let embed ~depth state =
+           Elpi_api_compat.BuiltInContextualData.int.embed ~depth []
+             API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tstring t ->
+       fun v ->
+         let embed ~depth state =
+           Elpi_api_compat.BuiltInContextualData.string.embed ~depth []
+             API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tty t ->
+       fun v ->
+         let embed ~depth state =
+           ty.embed ~depth [] API.RawData.no_constraints state v
+         in
+         make ~acc:(embed :: acc) t
+     | Tidentlist t ->
+       fun vs ->
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list
+              Elpi_api_compat.BuiltInContextualData.string)
+             .embed
+             ~depth [] API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Topt (_, Ttermlist t) ->
+       fun v ->
+         let vs = Option.value ~default:[] v in
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list term).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Topt (_, Ttermlist_same (_, t)) ->
+       fun v ->
+         let vs = Option.value ~default:[] v in
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list term).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Topt (_, Tprlist t) ->
+       fun v ->
+         let vs = Option.value ~default:[] v in
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list prsymbol).embed ~depth []
+             API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Topt (_, Tidentlist t) ->
+       fun v ->
+         let vs = Option.value ~default:[] v in
+         let embed ~depth state =
+           (Elpi_api_compat.BuiltInContextualData.list
+              Elpi_api_compat.BuiltInContextualData.string)
+             .embed
+             ~depth [] API.RawData.no_constraints state vs
+         in
+         make ~acc:(embed :: acc) t
+     | Topt (s, _) ->
+       fun _ ->
+         failwith
+           ("build_and_register_transform_with_args: Topt \"" ^ s
+          ^ "\" unsupported inner type")
+     | Toptbool (s, _) ->
+       fun _ ->
+         failwith
+           ("build_and_register_transform_with_args: Toptbool \"" ^ s
+          ^ "\" not supported")
+     | Ttysymbol _ ->
+       fun _ ->
+         failwith
+           "build_and_register_transform_with_args: Ttysymbol not supported"
+     | Tsymbol _ ->
+       fun _ ->
+         failwith
+           "build_and_register_transform_with_args: Tsymbol not supported"
+     | Tlist _ ->
+       fun _ ->
+         failwith "build_and_register_transform_with_args: Tlist not supported"
+     | Ttheory _ ->
+       fun _ ->
+         failwith
+           "build_and_register_transform_with_args: Ttheory not supported"
+  in
+  let make_trans = make ~acc:[] arg_type in
   Why3.Args_wrapper.wrap_and_register ~desc name arg_type make_trans
