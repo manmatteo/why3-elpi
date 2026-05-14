@@ -387,17 +387,7 @@ macro @open-forall-local-param! V Bnd GoalOut F :-
     F (Bnd (tapp Ls [] none)) InnerGoal).
 
 
-external symbol w3_run : list tdecl -> focused-goal -> list focused-task -> prop.
-
-external symbol w3_derive_eq : list tdecl -> focused-goal -> list focused-task -> prop.
-
-external symbol w3_derive_ord : list tdecl -> focused-goal -> list focused-task -> prop.
-
-external symbol w3_apply_lite_by : prsymbol -> list tdecl -> focused-goal -> list focused-task -> prop.
-
-external symbol w3_apply_ho : prsymbol -> list term -> list tdecl -> focused-goal -> list focused-task -> prop.
-
-external symbol w3_exists_term : term -> list tdecl -> focused-goal -> list focused-task -> prop.
+external symbol w3_run : prsymbol -> list term -> list tdecl -> focused-goal -> list focused-task -> prop.
 
 
 

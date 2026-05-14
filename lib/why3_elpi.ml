@@ -27,51 +27,9 @@ let document builtins =
   in
   API.BuiltIn.document_file ~header w3lp_builtins
 
-(* Runtime: ELPI program loading and query execution *)
-
 let _debug_no_typecheck =
   Why3.Debug.register_flag ~desc:"Disable typechecking for Elpi transformations"
     "no_elpi_tc"
-
-let cached_program : (string * API.Setup.elpi * API.Compile.program) option ref
-    =
-  ref None
-
-let extra_builtin_declarations : API.BuiltIn.declaration list ref = ref []
-
-let register_builtin_declaration decl =
-  extra_builtin_declarations := decl :: !extra_builtin_declarations;
-  cached_program := None
-
-let elpi_builtins () =
-  let builtins =
-    declaration @ why3_builtin_declarations
-    @ List.rev !extra_builtin_declarations
-  in
-  document builtins;
-  [ API.BuiltIn.declare ~file_name:"builtins.elpi"
-      (builtins @ Builtin.std_declarations)
-  ]
-
-let get_program ~file =
-  let file =
-    let candidates = [ file; Filename.concat ".." file ] in
-    match List.find_opt Sys.file_exists candidates with
-    | Some path -> path
-    | None -> file
-  in
-  match !cached_program with
-  | Some (cached_file, elpi, prog) when cached_file = file -> (elpi, prog)
-  | _ ->
-    let elpi =
-      API.Setup.init ?quotations:None ~builtins:(elpi_builtins ())
-        ~file_resolver:(API.Parse.std_resolver ~paths:[] ())
-        ()
-    in
-    let ast = API.Parse.program ~elpi ~files:[ file ] in
-    let prog = API.Compile.program ~elpi [ ast ] in
-    cached_program := Some (file, elpi, prog);
-    (elpi, prog)
 
 let read_output_tasks conv state output_term =
   try
@@ -79,7 +37,6 @@ let read_output_tasks conv state output_term =
       (Elpi_api_compat.BuiltInContextualData.list conv).readback ~depth:0 []
         API.RawData.no_constraints state output_term
     in
-    Format.printf "elpi: success\n%!";
     tm
   with exn ->
     (* Attemtping some useful debug prints before failing *)
@@ -112,13 +69,33 @@ let read_output_tasks conv state output_term =
      with Failure s -> Format.eprintf "elpi: %s@." s);
     raise exn
 
-let declare_external_symbol ~name ~ty =
-  register_builtin_declaration
-    (API.BuiltIn.LPCode (Printf.sprintf "external symbol %s : %s." name ty));
-  API.RawData.Constants.declare_global_symbol name
-
-let transform_query ~file build_query (t : Why3.Task.task) =
-  let _elpi, prog = get_program ~file in
+let transform_query ~file ~tys ~embeds (t : Why3.Task.task) =
+  let base_ty = "list tdecl -> focused-goal -> list focused-task -> prop" in
+  let ty = List.fold_right (Format.sprintf "%s -> %s") (List.rev tys) base_ty in
+  (* Format.printf "Registering transform with type %s\n%!" ty; *)
+  let w3_run_decl =
+    API.BuiltIn.LPCode (Printf.sprintf "external symbol %s : %s." "w3_run" ty)
+  in
+  let w3_run = API.RawData.Constants.declare_global_symbol "w3_run" in
+  let file =
+    let candidates = [ file; Filename.concat ".." file ] in
+    match List.find_opt Sys.file_exists candidates with
+    | Some path -> path
+    | None -> file
+  in
+  let builtins = declaration @ why3_builtin_declarations @ [ w3_run_decl ] in
+  document builtins;
+  let elpi =
+    API.Setup.init ?quotations:None
+      ~builtins:
+        [ API.BuiltIn.declare ~file_name:"builtins.elpi"
+            (builtins @ Builtin.std_declarations)
+        ]
+      ~file_resolver:(API.Parse.std_resolver ~paths:[ "." ] ())
+      ()
+  in
+  let ast = API.Parse.program ~elpi ~files:[ file ] in
+  let prog = API.Compile.program ~elpi [ ast ] in
   match split_focused_goal t with
   | None ->
     Why3.Loc.errorm "elpi: transform interface requires a task with a goal"
@@ -136,8 +113,16 @@ let transform_query ~file build_query (t : Why3.Task.task) =
         Elpi.API.FlexibleData.Elpi.make ~name:"Output" state
       in
       let output_t = Elpi.API.RawData.mkUnifVar output_uvar ~args:[] state in
-      let state, query_term, eg3 =
-        build_query ~depth state rest_t goal_t output_t
+      let state, args_t, eg3 =
+        List.fold_right
+          (fun embed (state, args_t, egs) ->
+            let state, arg_t, eg = embed ~depth state in
+            (state, arg_t :: args_t, egs @ eg))
+          embeds (state, [], [])
+      in
+      let query_term =
+        Elpi.API.RawData.mkAppGlobalL w3_run
+          (List.append args_t [ rest_t; goal_t; output_t ])
       in
       (state, query_term, eg1 @ eg2 @ eg3)
     in
@@ -149,33 +134,19 @@ let transform_query ~file build_query (t : Why3.Task.task) =
     | Failure -> Why3.Loc.errorm "elpi: failure"
     | NoMoreSteps -> assert false)
 
-let build_transform_with_embedded_args ~file ~entrypoint embeds =
-  let build_query ~depth state rest_t goal_t output_t =
-    let state, args_t, egs =
-      List.fold_left
-        (fun (state, args_t, egs) embed ->
-          let state, arg_t, eg = embed ~depth state in
-          (state, arg_t :: args_t, egs @ eg))
-        (state, [], []) embeds
-    in
-    let query_term =
-      Elpi.API.RawData.mkAppGlobalL entrypoint
-        (List.rev_append args_t [ rest_t; goal_t; output_t ])
-    in
-    (state, query_term, egs)
-  in
-  Why3.Trans.store (transform_query ~file build_query)
+let store_transform ~file ~tys embeds =
+  Why3.Trans.store (transform_query ~file ~tys ~embeds)
 
-let register_transform (type a b) ~name ~file ~entrypoint
+let register_transform (type a b) ~name ~file
     ~(arg_type : (a, b) Why3.Args_wrapper.trans_typ) ~desc =
   let open Why3.Args_wrapper in
   match arg_type with
   | Ttrans_l ->
     Why3.Trans.register_transform_l ~desc name
-      (build_transform_with_embedded_args ~file ~entrypoint [])
+      (store_transform ~file ~tys:[] [])
   | Tenvtrans_l ->
     Why3.Trans.register_env_transform_l ~desc name (fun _env ->
-        build_transform_with_embedded_args ~file ~entrypoint [])
+        store_transform ~file ~tys:[] [])
   | _ ->
     let embed_one conv v ~depth state =
       conv.API.ContextualConversion.embed ~depth [] API.RawData.no_constraints
@@ -191,14 +162,14 @@ let register_transform (type a b) ~name ~file ~entrypoint
               -> API.Data.state
               -> API.Data.state * API.Data.term * API.Conversion.extra_goal list)
              list
+        -> tys:string list
         -> (a, b) trans_typ
         -> a =
-     fun ~acc -> function
+     fun ~acc ~tys -> function
        | Ttrans_l ->
-         build_transform_with_embedded_args ~file ~entrypoint (List.rev acc)
-       | Tenvtrans_l ->
-         fun _env ->
-           build_transform_with_embedded_args ~file ~entrypoint (List.rev acc)
+         (* Format.printf "Registering transform %s with type %s" name tys; *)
+         store_transform ~file ~tys (List.rev acc)
+       | Tenvtrans_l -> fun _env -> store_transform ~file ~tys (List.rev acc)
        | Ttrans ->
          failwith
            "build_and_register_transform_with_args: Ttrans not supported (use \
@@ -208,50 +179,84 @@ let register_transform (type a b) ~name ~file ~entrypoint
            failwith
              "build_and_register_transform_with_args: Tenvtrans not supported \
               (use Tenvtrans_l)"
-       | Tprsymbol t -> fun v -> make ~acc:(embed_one prsymbol v :: acc) t
-       | Tterm t -> fun v -> make ~acc:(embed_one term v :: acc) t
-       | Tformula t -> fun v -> make ~acc:(embed_one term v :: acc) t
-       | Tlsymbol t -> fun v -> make ~acc:(embed_one lsymbol v :: acc) t
-       | Tty t -> fun v -> make ~acc:(embed_one ty v :: acc) t
+       | Tprsymbol t ->
+         fun v ->
+           make ~acc:(embed_one prsymbol v :: acc) ~tys:("prsymbol" :: tys) t
+       | Tterm t ->
+         fun v ->
+           let tys = "term" :: tys in
+           make ~acc:(embed_one term v :: acc) ~tys t
+       | Tformula t ->
+         fun v ->
+           let tys = "term" :: tys in
+           make ~acc:(embed_one term v :: acc) ~tys t
+       | Tlsymbol t ->
+         fun v ->
+           let tys = "lsymbols" :: tys in
+           make ~acc:(embed_one lsymbol v :: acc) ~tys t
+       | Tty t ->
+         fun v ->
+           let tys = "ty" :: tys in
+           make ~acc:(embed_one Ty.ty v :: acc) ~tys t
        | Tint t ->
          fun v ->
+           let tys = "int" :: tys in
            make
              ~acc:(embed_one Elpi_api_compat.BuiltInContextualData.int v :: acc)
-             t
+             ~tys t
        | Tstring t ->
          fun v ->
+           let tys = "string" :: tys in
            make
              ~acc:
                (embed_one Elpi_api_compat.BuiltInContextualData.string v :: acc)
-             t
-       | Tprlist t -> fun vs -> make ~acc:(embed_list prsymbol vs :: acc) t
-       | Ttermlist t -> fun vs -> make ~acc:(embed_list term vs :: acc) t
+             ~tys t
+       | Tprlist t ->
+         fun vs ->
+           let tys = "prsymbol list" :: tys in
+           make ~acc:(embed_list prsymbol vs :: acc) ~tys t
+       | Ttermlist t ->
+         fun vs ->
+           let tys = "list term" :: tys in
+           make ~acc:(embed_list term vs :: acc) ~tys t
        | Ttermlist_same (_, t) ->
-         fun vs -> make ~acc:(embed_list term vs :: acc) t
+         let tys = "list term" :: tys in
+         fun vs -> make ~acc:(embed_list term vs :: acc) ~tys t
        | Tidentlist t ->
+         let tys = "list string" :: tys in
          fun vs ->
            make
              ~acc:
                (embed_list Elpi_api_compat.BuiltInContextualData.string vs
                :: acc)
-             t
+             ~tys t
        | Topt (_, Ttermlist t) ->
+         let tys = "list term" :: tys in
          fun v ->
-           make ~acc:(embed_list term (Option.value ~default:[] v) :: acc) t
+           make
+             ~acc:(embed_list term (Option.value ~default:[] v) :: acc)
+             ~tys t
        | Topt (_, Ttermlist_same (_, t)) ->
+         let tys = "list term" :: tys in
          fun v ->
-           make ~acc:(embed_list term (Option.value ~default:[] v) :: acc) t
+           make
+             ~acc:(embed_list term (Option.value ~default:[] v) :: acc)
+             ~tys t
        | Topt (_, Tprlist t) ->
+         let tys = "prsymbol list" :: tys in
          fun v ->
-           make ~acc:(embed_list prsymbol (Option.value ~default:[] v) :: acc) t
+           make
+             ~acc:(embed_list prsymbol (Option.value ~default:[] v) :: acc)
+             ~tys t
        | Topt (_, Tidentlist t) ->
+         let tys = "list string" :: tys in
          fun v ->
            make
              ~acc:
                (embed_list Elpi_api_compat.BuiltInContextualData.string
                   (Option.value ~default:[] v)
                :: acc)
-             t
+             ~tys t
        | Topt (s, _) ->
          fun _ ->
            failwith
@@ -259,16 +264,25 @@ let register_transform (type a b) ~name ~file ~entrypoint
             ^ "\" unsupported inner type")
        | Toptbool (_, t) ->
          fun b ->
+           let tys = "bool" :: tys in
            make
              ~acc:(embed_one Elpi_api_compat.BuiltInContextualData.bool b :: acc)
-             t
-       | Ttysymbol t -> fun v -> make ~acc:(embed_one Ty.tysymbol v :: acc) t
+             ~tys t
+       | Ttysymbol t ->
+         let tys = "tysymbol" :: tys in
+         fun v -> make ~acc:(embed_one Ty.tysymbol v :: acc) ~tys t
        | Tsymbol t ->
-         fun v -> make ~acc:(embed_one gref (symbol_to_gref v) :: acc) t
+         let tys = "gref" :: tys in
+         fun v -> make ~acc:(embed_one gref (symbol_to_gref v) :: acc) ~tys t
        | Tlist t ->
+         let tys = "list gref" :: tys in
          fun vs ->
-           make ~acc:(embed_list gref (List.map symbol_to_gref vs) :: acc) t
-       | Ttheory t -> fun v -> make ~acc:(embed_one Theory.theory v :: acc) t
+           make
+             ~acc:(embed_list gref (List.map symbol_to_gref vs) :: acc)
+             ~tys t
+       | Ttheory t ->
+         let tys = "theory" :: tys in
+         fun v -> make ~acc:(embed_one Theory.theory v :: acc) ~tys t
     in
-    let make_trans = make ~acc:[] arg_type in
+    let make_trans = make ~acc:[] ~tys:[] arg_type in
     Why3.Args_wrapper.wrap_and_register ~desc name arg_type make_trans

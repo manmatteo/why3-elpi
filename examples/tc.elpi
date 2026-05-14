@@ -1,16 +1,13 @@
 
 w3_run Rest (goal-formula GoalPr GoalTerm) [focused-task Rest (goal-formula GoalPr FullInstance)] :-
   std.map-filter Rest get-class-ty ClassTypes,
-  print "ClassTypes:" ClassTypes,
   std.map ClassTypes (x\ y\ y = is-class-ty x) ClassProp,
   std.filter Rest is-instance Instances,
   (ClassProp => (
     sigma Cls\
     std.map Instances compile-instance Cls,
     (Cls => solve-tc GoalTerm FullInstance _ComputedInstances)
-    % , print "solved" FullInstance ComputedInstances
-    )),
-  print "Indeed this is fine".
+    )).
 
 w3_run Rest Goal [focused-task Rest Goal].
 

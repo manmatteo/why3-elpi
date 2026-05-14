@@ -4,7 +4,6 @@
   why3extra.test.conf
   normalize_quantifiers
   check_open_term_attrs.elpi
-  ../examples/apply_lite.elpi
   ../examples/apply_ho.elpi
   ../examples/assert.elpi
   ../examples/case.elpi

@@ -3,12 +3,22 @@
 % This is a small proof point for typed term arguments passed through Why3's
 % Args_wrapper machinery before entering ELPI.
 %
-w3_run Rest Goal [focused-task Rest Goal].
 
-w3_exists_term Witness Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
+w3_run Witness Rest Goal [focused-task Rest GoalOut] :-
+  instantiate-exists-goal Witness Goal GoalOut,
+  !.
+
+w3_run _ Rest Goal [focused-task Rest Goal].
+
+pred instantiate-exists-goal i:term, i:focused-goal, o:focused-goal.
+instantiate-exists-goal Witness (goal-formula GoalPr Goal) (goal-formula GoalPr GoalOut) :-
   instantiate-exists Witness Goal GoalOut.
-
-w3_exists_term _ Rest Goal [focused-task Rest Goal].
+instantiate-exists-goal Witness (local-prop Name Hyp Tail) (local-prop Name Hyp TailOut) :-
+  instantiate-exists-goal Witness Tail TailOut.
+instantiate-exists-goal Witness (local-symbol Ls Decl Tail) (local-symbol Ls Decl TailOut) :-
+  pi x\ instantiate-exists-goal Witness (Tail x) (TailOut x).
+instantiate-exists-goal Witness (local-type Ts Tail) (local-type Ts TailOut) :-
+  instantiate-exists-goal Witness Tail TailOut.
 
 pred instantiate-exists i:term, i:term, o:term.
 instantiate-exists Witness (tattr Attrs Goal) (tattr Attrs GoalOut) :-

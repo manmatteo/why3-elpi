@@ -1,10 +1,8 @@
 % Split the goal like Why3's assert: first prove Cond, then continue with Cond as a hypothesis.
 
-w3_run Rest Goal [focused-task Rest Goal].
-
-w3_assert Cond Rest (goal-formula GoalPr Goal)
+w3_run Cond Rest (goal-formula GoalPr Goal)
     [ focused-task Rest (goal-formula GoalPr Cond)
     , focused-task Rest (local-prop "h" Cond (goal-formula GoalPr Goal))
     ].
 
-w3_assert _ Rest Goal [focused-task Rest Goal].
+w3_run _ Rest Goal [focused-task Rest Goal].
