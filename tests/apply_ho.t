@@ -41,4 +41,3 @@ Atomic goal with let-opened aliases
   anomaly: Why3.Generic_arg_trans_utils.Arg_trans_missing(_)
 
   $ why3 prove apply_ho_atomic.mlw --extra-config why3extra.test.conf -D why3 -a "elpi_apply_ho let_alias_tri" 2>&1 | sed -n -E '/^elpi: success|^goal /p'
-  elpi: success

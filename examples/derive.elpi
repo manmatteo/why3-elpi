@@ -6,11 +6,7 @@
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
   solve-derive Rest Goal GoalOut.
 
-w3_derive_eq Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
-  solve-derive-family "eq" Rest Goal GoalOut.
-
-w3_derive_ord Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
-  solve-derive-family "ord" Rest Goal GoalOut.
+w3_run Rest Goal [focused-task Rest Goal].
 
 pred solve-derive i:list tdecl, i:term, o:term.
 solve-derive Rest (tattr Attrs T) (tattr Attrs Out) :-
@@ -27,22 +23,6 @@ solve-derive Rest (tquant texists V Bnd) (tquant texists V (x\ Body x)) :-
   (pi X\ ctx-vs X V => (
     solve-derive Rest (Bnd X) (Body X))).
 solve-derive _ Goal Goal.
-
-pred solve-derive-family i:string, i:list tdecl, i:term, o:term.
-solve-derive-family Family Rest (tattr Attrs T) (tattr Attrs Out) :-
-  solve-derive-family Family Rest T Out.
-solve-derive-family Family Rest (ttrigger Triggers T) (ttrigger Triggers Out) :-
-  solve-derive-family Family Rest T Out.
-solve-derive-family Family Rest (tquant texists V Bnd) (tlet Witness V (x\ Body x)) :-
-  why3.var-type V (tyapp DictTySym [TargetTy]),
-  why3.tysymbol-name DictTySym Family,
-  derive-dict-term Rest DictTySym TargetTy Witness,
-  (pi X\ ctx-vs X V => (
-    solve-derive-family Family Rest (Bnd X) (Body X))).
-solve-derive-family Family Rest (tquant texists V Bnd) (tquant texists V (x\ Body x)) :-
-  (pi X\ ctx-vs X V => (
-    solve-derive-family Family Rest (Bnd X) (Body X))).
-solve-derive-family _ _ Goal Goal.
 
 pred supported-dict-family i:tysymbol.
 supported-dict-family DictTySym :-

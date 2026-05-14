@@ -3,7 +3,7 @@
 
 w3_run Rest (goal-formula GoalPr Goal) Tasks :-
   flatten-and Goal Terms,
-  std.map Terms (mk-task Rest GoalPr) Tasks.
+  std.map Terms (g\ focused-task Rest (goal-formula GoalPr g)) Tasks.
 
 w3_run Rest Goal [focused-task Rest Goal].
 
@@ -14,6 +14,3 @@ flatten-and (tbinop tand A B) Out :-
   flatten-and B LB,
   std.append LA LB Out.
 flatten-and T [T].
-
-pred mk-task i:list tdecl, i:prsymbol, i:term, o:focused-task.
-mk-task Rest GoalPr Goal (focused-task Rest (goal-formula GoalPr Goal)).
