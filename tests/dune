@@ -4,7 +4,7 @@
   why3extra.test.conf
   normalize_quantifiers
   check_open_term_attrs.elpi
-  ../examples/apply_ho.elpi
+  ../examples/apply.elpi
   ../examples/assert.elpi
   ../examples/case.elpi
   ../examples/destruct.elpi
@@ -29,7 +29,7 @@
   why3extra.test.conf
   ../w3lp.elpi
   ../transform.elpi
-  ../examples/apply_ho.elpi
+  ../examples/apply.elpi
   ../examples/assert.elpi
   ../examples/destruct.elpi
   sessions/search.mlw

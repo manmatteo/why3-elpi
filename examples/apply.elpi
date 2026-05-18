@@ -1,4 +1,4 @@
-% apply_ho: apply tactic using ELPI's higher-order unification over HOAS binders.
+% apply: apply tactic using ELPI's higher-order unification over HOAS binders.
 %
 % This tactic peels forall binders by opening them with a fresh ELPI unification
 % variable X per quantifier, and it also opens top-level let-binders by
@@ -12,7 +12,7 @@
 %   Matching the conclusion instantiates y = 7, then discharge-premises
 %   matches "nice x" against hypothesis "nice 3" and leaves the subgoal 3 <= 7.
 %
-% Registered Why3 wrapper:  elpi_apply_ho <prop> [with] <term list>
+% Registered Why3 wrapper:  elpi_apply <prop> [with] <term list>
 
 w3_run Target WithTerms Decls Goal OutTasks :-
   focused-goal-shape Goal GoalPr GoalConclusion GoalHyps,

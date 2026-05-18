@@ -51,8 +51,7 @@ let () =
         ~arg_type:Why3.Args_wrapper.Ttrans_l ~desc)
     entrypoint_transform_specs;
 
-  Why3_elpi.register_transform ~name:"elpi_apply_ho"
-    ~file:"examples/apply_ho.elpi"
+  Why3_elpi.register_transform ~name:"elpi_apply" ~file:"examples/apply.elpi"
     ~arg_type:Why3.Args_wrapper.(Tprsymbol (Topt ("with", Ttermlist Ttrans_l)))
     ~desc:
       "Run@ the@ ELPI@ apply-ho@ tactic@ with@ a@ typed@ proposition@ symbol@ \

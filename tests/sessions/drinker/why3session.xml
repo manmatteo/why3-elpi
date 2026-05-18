@@ -51,7 +51,7 @@
    <goal name="drinkers_paradox.0.0" proved="true">
    <transf name="intros" proved="true" arg1="h1,j">
     <goal name="drinkers_paradox.0.0.0" proved="true">
-    <transf name="elpi_apply_ho" proved="true" arg1="h">
+    <transf name="elpi_apply" proved="true" arg1="h">
     </transf>
     </goal>
    </transf>
