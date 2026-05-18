@@ -30,7 +30,7 @@ Every file is then registered as a Why3 transformation in `bin/why3_elpi_transfo
 - `elpi_intros_full`: Introduces top-level `forall` binders and implications.
 - `elpi_split_goal_and`: Splits top-level goal conjunctions into multiple output tasks.
 - `elpi_drop_non_goal_props`: Keeps goals and non-proposition declarations, drops lemmas/axioms.
-- `elpi_apply_ho [with t1, ..., tn]`: Higher-order `apply` prototype with explicit witness terms.
+- `elpi_apply lemma [with t1, ..., tn]`: Apply a lemma by giving its prsymbol and possibly a list of instantiation witnesses. Uses Elpi for unification.
 - `elpi_exists_term T`: Instantiates the top-level existential with an explicit Why3 term `T`.
 - `elpi_tc`: Compiles `[@class]` and `[@instance]` declarations into a witness-synthesis engine for existential goals.
 - `elpi_derive`: Structurally synthesizes `eq` and `ord` witnesses based on helper combinators in scope.
@@ -38,7 +38,7 @@ Every file is then registered as a Why3 transformation in `bin/why3_elpi_transfo
 ## How it works
 
 The bridge between Why3 and Elpi is configured in `lib/why3_elpi.ml`. It provides builders to register the Why3 transformation wrappers into Why3's environment.
-When a user invokes a transformation like `elpi_apply_ho`, the engine loads `w3lp.elpi` along with the specific code (e.g. `examples/apply_ho.elpi`), and then calls the `w3_run` predicate to produce the new tasks.
+When a user invokes a transformation like `elpi_apply`, the engine loads `w3lp.elpi` along with the specific code (e.g. `examples/apply.elpi`), and then calls the `w3_run` predicate to produce the new tasks.
 
 ```bash
 # Local development: edit an example like examples/intro_implies.elpi and test the changes

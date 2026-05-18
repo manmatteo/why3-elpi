@@ -391,7 +391,7 @@
   <proof prover="0"><result status="valid" time="0.110000" steps="727"/></proof>
   </goal>
   <goal name="quick_rec&#39;vc.39" expl="postcondition">
-  <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a2">
+  <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a2">
    <goal name="quick_rec&#39;vc.39.0" expl="apply premises">
    <proof prover="0"><result status="valid" time="0.010000" steps="60"/></proof>
    </goal>
@@ -399,7 +399,7 @@
    <proof prover="0"><result status="valid" time="0.010000" steps="60"/></proof>
    </goal>
    <goal name="quick_rec&#39;vc.39.2" expl="apply premises">
-   <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a3">
+   <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a3">
     <goal name="quick_rec&#39;vc.39.2.0" expl="apply premises">
     <proof prover="0"><result status="valid" time="0.010000" steps="60"/></proof>
     </goal>
@@ -415,7 +415,7 @@
    </transf>
    </goal>
    <goal name="quick_rec&#39;vc.39.3" expl="apply premises">
-   <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a1">
+   <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a1">
     <goal name="quick_rec&#39;vc.39.3.0" expl="apply premises">
     <proof prover="0"><result status="valid" time="0.010000" steps="60"/></proof>
     </goal>
@@ -551,7 +551,7 @@
   <proof prover="0" timelimit="10" memlimit="4000"><result status="valid" time="0.202407" steps="2416"/></proof>
   </goal>
   <goal name="quick_rec&#39;vc.78" expl="postcondition">
-  <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a2">
+  <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a2">
    <goal name="quick_rec&#39;vc.78.0" expl="apply premises">
    <proof prover="0"><result status="valid" time="0.010000" steps="58"/></proof>
    </goal>
@@ -559,7 +559,7 @@
    <proof prover="0"><result status="valid" time="0.010000" steps="58"/></proof>
    </goal>
    <goal name="quick_rec&#39;vc.78.2" expl="apply premises">
-   <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a3">
+   <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a3">
     <goal name="quick_rec&#39;vc.78.2.0" expl="apply premises">
     <proof prover="0"><result status="valid" time="0.010000" steps="58"/></proof>
     </goal>
@@ -575,7 +575,7 @@
    </transf>
    </goal>
    <goal name="quick_rec&#39;vc.78.3" expl="apply premises">
-   <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a1">
+   <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a1">
     <goal name="quick_rec&#39;vc.78.3.0" expl="apply premises">
     <proof prover="0"><result status="valid" time="0.020000" steps="58"/></proof>
     </goal>
@@ -611,7 +611,7 @@
   <proof prover="0"><result status="valid" time="0.031742" steps="342"/></proof>
   </goal>
   <goal name="quick_rec&#39;vc.85" expl="loop invariant preservation">
-  <transf name="elpi_apply_ho" arg1="permut_sub_trans" arg2="with" arg3="a1">
+  <transf name="elpi_apply" arg1="permut_sub_trans" arg2="with" arg3="a1">
    <goal name="quick_rec&#39;vc.85.0" expl="apply premises">
    <proof prover="0"><result status="valid" time="0.010000" steps="52"/></proof>
    </goal>
