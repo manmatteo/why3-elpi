@@ -1,55 +1,50 @@
-w3_run Target Rest Goal OutTasks :-
-  why3.prsymbol-name Target TargetName,
-  find-rest-prop Target Rest Hyp RestTail,
-  destruct-hyp TargetName Hyp Goal OutGoals,
-  std.map OutGoals (g\ task\ task = focused-task RestTail g) OutTasks,
-  !.
+% Destruct a named hypothesis, either a proposition declaration of the task
+% prefix or a local hypothesis of the focused goal:
+% - an existential hypothesis is opened as a local constant
+% - a conjunction becomes two local hypotheses
+% - a disjunction splits the task in two
+% - an implication splits into proving the premise and using the conclusion
+%
+% Dispatch on the hypothesis shape matches the stripped term directly: the
+% handled shapes are distinct term constructors, so the clauses of
+% destruct-term are disjoint and no cut is needed. No default case is
+% wanted here (destructing an atom fails), so no classifier is involved.
 
 w3_run Target Rest Goal OutTasks :-
-  why3.prsymbol-name Target TargetName,
-  destruct-in-goal TargetName Goal OutGoals,
-  std.map OutGoals (g\ task\ task = focused-task Rest g) OutTasks,
-  !.
+  why3.with-context Rest (destruct Target Rest Goal OutTasks).
 
 w3_run _ Rest Goal [focused-task Rest Goal].
 
+% The hypothesis is searched for among the prefix declarations and among
+% the local hypotheses of the focused goal. The clauses overlap on
+% purpose: where to find the hypothesis is a relational choice, and the
+% clause order makes the prefix the first place tried.
+pred destruct i:prsymbol, i:list tdecl, i:focused-goal, o:list (focused-task).
+destruct Target Rest Goal OutTasks :-
+  why3.premise Target Hyp,
+  why3.remove-defining (gpr Target) Rest RestTail,
+  why3.prsymbol-name Target TargetName,
+  destruct-hyp TargetName Hyp Goal OutGoals,
+  std.map OutGoals (g\ task\ task = focused-task RestTail g) OutTasks.
+destruct Target Rest Goal OutTasks :-
+  why3.prsymbol-name Target TargetName,
+  why3.split-hyp TargetName Goal Wrap Hyp Tail,
+  destruct-hyp TargetName Hyp Tail TailGoals,
+  std.map TailGoals (g\ task\ task = focused-task Rest (Wrap g)) OutTasks.
+
 pred destruct-hyp i:string, i:term, i:focused-goal, o:list focused-goal.
-destruct-hyp Name (tattr _ T) Tail Out :- destruct-hyp Name T Tail Out.
-destruct-hyp Name (ttrigger _ T) Tail Out :- destruct-hyp Name T Tail Out.
-destruct-hyp Name (tquant texists V Bnd) Tail [GoalOut] :- !,
-  why3.var-name V FreshName,
-  why3.var-type V FreshTy,
-  why3.mk-ls FreshName [] (some FreshTy) Ls,
-  @pi-local-param-goal! Ls GoalOut (InnerGoal\
-    InnerGoal = local-prop Name (Bnd (tapp Ls [] none)) Tail).
-destruct-hyp Name (tnot (tquant tforall V Bnd)) Tail Out :- !,
-  destruct-hyp Name (tquant texists V (x\ tnot (Bnd x))) Tail Out.
-destruct-hyp Name (tnot (tattr _A T)) Tail Out :- !,
-  destruct-hyp Name (tnot T) Tail Out.
-destruct-hyp Name (tnot (ttrigger _Tr T)) Tail Out :- !,
-  destruct-hyp Name (tnot T) Tail Out.
-destruct-hyp Name (tbinop tand A B) Tail [local-prop Name A (local-prop Name B Tail)] :- !.
-destruct-hyp Name (tbinop tor A B) Tail [local-prop Name A Tail, local-prop Name B Tail] :- !.
-destruct-hyp Name (tbinop timplies Prem Conseq) Tail [PremGoal, local-prop Name Conseq Tail] :- !,
-  replace-goal-term Tail Prem PremGoal.
+destruct-hyp Name Hyp Tail Out :-
+  why3.strip Hyp T,
+  destruct-term Name T Tail Out.
 
-pred replace-goal-term i:focused-goal, i:term, o:focused-goal.
-replace-goal-term (local-prop Name Hyp Tail) GoalTerm (local-prop Name Hyp TailOut) :-
-  replace-goal-term Tail GoalTerm TailOut.
-replace-goal-term (goal-formula GoalPr _) GoalTerm (goal-formula GoalPr GoalTerm).
+func destruct-term string, term, focused-goal -> list focused-goal.
+destruct-term Name (tquant texists V Bnd) Tail [Wrap (local-prop Name Body Tail)] :-
+  why3.intro-var V Bnd Body Wrap.
+destruct-term Name (tnot T) Tail Out :-
+  why3.strip T (tquant tforall V Bnd),
+  destruct-term Name (tquant texists V (x\ tnot (Bnd x))) Tail Out.
+destruct-term Name (tbinop tand A B) Tail [local-prop Name A (local-prop Name B Tail)].
+destruct-term Name (tbinop tor A B) Tail [local-prop Name A Tail, local-prop Name B Tail].
+destruct-term Name (tbinop timplies Prem Conseq) Tail [PremGoal, local-prop Name Conseq Tail] :-
+  why3.set-conclusion Tail Prem PremGoal.
 
-pred destruct-in-goal i:string, i:focused-goal, o:list focused-goal.
-destruct-in-goal TargetName (local-prop TargetName Hyp Tail) OutGoals :- !,
-  destruct-hyp TargetName Hyp Tail OutGoals.
-destruct-in-goal TargetName (local-prop Name Hyp Tail) OutGoals :-
-  destruct-in-goal TargetName Tail TailGoals,
-  std.map TailGoals (g\ wrapped\ wrapped = local-prop Name Hyp g) OutGoals.
-
-pred find-rest-prop i:prsymbol, i:list tdecl, o:term, o:list tdecl.
-find-rest-prop Target [decl D | Tail] Hyp Tail :-
-  why3.decl-kind D decl-prop,
-  why3.decl-defines D Refs,
-  std.mem Refs (gpr Target),
-  why3.decl-body D (gpr Target) (dterm Hyp).
-find-rest-prop Target [Td | Tail] Hyp [Td | RestOut] :-
-  find-rest-prop Target Tail Hyp RestOut.

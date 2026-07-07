@@ -6,8 +6,16 @@ w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
 
 w3_run Rest Goal [focused-task Rest Goal].
 
-pred intro-implies i:prsymbol, i:term, o:focused-goal.
-intro-implies GoalPr (tattr _ T) GoalOut :- intro-implies GoalPr T GoalOut.
-intro-implies GoalPr (tbinop timplies Premise Body) (local-prop "H" Premise GoalOut) :-
+% Dispatch on the total why3.as-implies classifier: some/none are disjoint
+% patterns, so no cut and no negation as failure is needed and clause order
+% does not matter. The original term is carried alongside so the none case
+% returns it with its attributes intact.
+func intro-implies prsymbol, term -> focused-goal.
+intro-implies GoalPr T GoalOut :-
+  why3.as-implies T Imp,
+  intro-step GoalPr T Imp GoalOut.
+
+func intro-step prsymbol, term, option (pair term term) -> focused-goal.
+intro-step GoalPr _ (some (pr Premise Body)) (local-prop "H" Premise GoalOut) :-
   intro-implies GoalPr Body GoalOut.
-intro-implies GoalPr Goal (goal-formula GoalPr Goal).
+intro-step GoalPr T none (goal-formula GoalPr T).

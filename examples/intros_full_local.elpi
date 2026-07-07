@@ -6,6 +6,10 @@
 %
 % The transform returns a focused goal wrapped in explicit local declarations.
 % Readback turns those wrappers into global task declarations.
+%
+% Dispatch chains the total classifiers why3.as-forall and why3.as-implies,
+% so the clauses are disjoint by pattern matching on some/none — no cut and
+% no negation as failure.
 
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   inspect GoalPr Goal GoalOut.
@@ -13,30 +17,39 @@ w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
 w3_run Rest Goal [focused-task Rest Goal].
 
 pred inspect i:prsymbol, i:term, o:focused-goal.
+inspect GoalPr T GoalOut :-
+  why3.as-forall T Fa,
+  inspect-forall GoalPr T Fa GoalOut.
 
-inspect GoalPr (tattr _ T) GoalOut :- inspect GoalPr T GoalOut.
-inspect GoalPr (ttrigger _ T) GoalOut :- inspect GoalPr T GoalOut.
-inspect GoalPr (tquant tforall V Bnd) GoalOut :-
+pred inspect-forall i:prsymbol, i:term, i:option (pair var (term -> term)), o:focused-goal.
+inspect-forall GoalPr _ (some (pr V Bnd)) (Wrap Inner) :-
   print "opened-forall" V,
-  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
-    inspect GoalPr Body InnerGoal).
-inspect GoalPr (tbinop timplies Prem Body) (local-prop HypName Prem GoalOut) :-
+  why3.intro-var V Bnd Body Wrap,
+  inspect GoalPr Body Inner.
+inspect-forall GoalPr T none GoalOut :-
+  why3.as-implies T Imp,
+  inspect-implies GoalPr T Imp GoalOut.
+
+pred inspect-implies i:prsymbol, i:term, i:option (pair term term), o:focused-goal.
+inspect-implies GoalPr _ (some (pr Prem Body)) (local-prop HypName Prem GoalOut) :-
   premise-name Prem HypName,
   why3.pp-term Prem PremStr,
   print "opened-premise" HypName PremStr,
   inspect GoalPr Body GoalOut.
-inspect GoalPr Goal (goal-formula GoalPr Goal) :-
+inspect-implies GoalPr T none GoalOut :- inspect-stop GoalPr T GoalOut.
+
+pred inspect-stop i:prsymbol, i:term, o:focused-goal.
+inspect-stop GoalPr T (goal-formula GoalPr T) :-
   print "opened-goal" GoalPr,
-  why3.pp-term Goal GoalStr,
+  why3.pp-term T GoalStr,
   print "conclusion" GoalStr.
 
 pred premise-name i:term, o:string.
-premise-name (tattr Attrs _) Name :- attr-hyp-name Attrs Name.
-premise-name _ "H".
+premise-name Premise Name :-
+  why3.term-attrs Premise Attrs,
+  why3.attr-value Attrs "hyp_name" NameOpt,
+  name-or-default NameOpt Name.
 
-pred attr-hyp-name i:list attribute, o:string.
-attr-hyp-name [Attr | _] Name :-
-  why3.attr-string Attr AttrStr,
-  rex.split ":" AttrStr ["hyp_name", Name].
-attr-hyp-name [_ | Attrs] Name :-
-  attr-hyp-name Attrs Name.
+func name-or-default option string -> string.
+name-or-default (some Name) Name.
+name-or-default none "H".

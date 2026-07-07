@@ -16,69 +16,58 @@
 
 % Main transform: recognise exists goals and attempt synthesis
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
-  open-and-derive GoalPr Rest Goal GoalOut.
+  why3.with-context Rest (open-and-derive GoalPr Goal GoalOut).
 
 % Fallback: no synthesis attempted
 w3_run Rest Goal [focused-task Rest Goal].
 
 % Recursively open forall/exists and attempt synthesis at the exists
-pred open-and-derive i:prsymbol, i:list tdecl, i:term, o:focused-goal.
+pred open-and-derive i:prsymbol, i:term, o:focused-goal.
 
 % Skip attributes and triggers
-open-and-derive GoalPr Rest (tattr _ T) GoalOut :-
-  open-and-derive GoalPr Rest T GoalOut.
-open-and-derive GoalPr Rest (ttrigger _ T) GoalOut :-
-  open-and-derive GoalPr Rest T GoalOut.
+open-and-derive GoalPr (tattr _ T) GoalOut :-
+  open-and-derive GoalPr T GoalOut.
+open-and-derive GoalPr (ttrigger _ T) GoalOut :-
+  open-and-derive GoalPr T GoalOut.
 
 % Attempt synthesis on existential: check if it looks like a function type
-open-and-derive GoalPr Rest (tquant texists EqVar Bnd) GoalOut :-
+open-and-derive GoalPr (tquant texists EqVar Bnd) (Wrap ContGoal) :-
   why3.var-type EqVar VarTy,
   % Extract the compared type from a function type (a -> a -> bool)
   extract-base-type-from-arrow VarTy FullBaseTy TySym,
-  find-data-decl Rest TySym DataDecl,
+  why3.datatype TySym DataDecl,
   why3.decl-data-constructors DataDecl Ctors,
-  why3.var-name EqVar EqName,
-  why3.mk-ls EqName [] (some VarTy) EqLs,
-  find-global-eq-symbol Rest EqSym,
-  synth-eq-body-from-ctors FullBaseTy Ctors EqLs EqSym EqBody,
-  GoalOut = local-symbol EqLs
-    (_\ symbol-logic EqBody)
-    (self\ ContGoal self),
-  (pi self\ ctx-ls self EqLs =>
-    open-and-derive GoalPr Rest (Bnd (tapp EqLs [] none)) (ContGoal self)).
+  find-global-eq-symbol EqSym,
+  % EqBody is an output of the synthesis below; the local definition can be
+  % assembled before its body is known.
+  why3.intro-def EqVar EqBody EqOcc Wrap,
+  synth-eq-body-from-ctors FullBaseTy Ctors EqOcc EqSym EqBody,
+  open-and-derive GoalPr (Bnd EqOcc) ContGoal.
 
 % Skip forall and pass through
-open-and-derive GoalPr _Rest (tquant tforall FVar Bnd) GoalOut :-
+open-and-derive GoalPr (tquant tforall FVar Bnd) GoalOut :-
   GoalOut = goal-formula GoalPr (tquant tforall FVar Bnd).
 
 % Skip non-matching exists and pass through
-open-and-derive GoalPr _Rest (tquant texists V Bnd) GoalOut :-
+open-and-derive GoalPr (tquant texists V Bnd) GoalOut :-
   GoalOut = goal-formula GoalPr (tquant texists V Bnd).
 
 % Fallback: leave goal unchanged
-open-and-derive GoalPr _ Goal (goal-formula GoalPr Goal).
+open-and-derive GoalPr Goal (goal-formula GoalPr Goal).
 
-% Extract base argument type and its type symbol from a function type (a -> a -> bool gives a, sym).
+% Extract base argument type and its type symbol from a function type (a ->
+% a -> bool gives a, sym). The clauses overlap on purpose: which argument
+% type to pick is a relational choice, further constrained by the caller
+% (the extracted symbol must have a datatype declaration in the context).
 pred extract-base-type-from-arrow i:ty, o:ty, o:tysymbol.
-extract-base-type-from-arrow (tyapp arr [ArgTy, _]) ArgTy TySym :-
-  ArgTy = tyapp TySym _, !.
+extract-base-type-from-arrow (tyapp arr [tyapp TySym Args, _]) (tyapp TySym Args) TySym.
 extract-base-type-from-arrow (tyapp arr [_, RestTy]) BaseTy TySym :-
   extract-base-type-from-arrow RestTy BaseTy TySym.
 
-% Find the Ddata declaration that defines the given type symbol
-pred find-data-decl i:list tdecl, i:tysymbol, o:decl.
-find-data-decl Rest TySym D :-
-  std.mem Rest (decl D),
-  why3.decl-kind D decl-data,
-  why3.decl-defines D Refs,
-  std.mem Refs (gty TySym).
-
-% Resolve the built-in logical equality symbol from the task environment.
-pred find-global-eq-symbol i:list tdecl, o:lsymbol.
-find-global-eq-symbol Rest EqSym :-
-  std.mem Rest (decl D),
-  why3.decl-defines D Refs,
-  std.mem Refs (gls EqSym),
+% Resolve the built-in logical equality symbol from the task context.
+pred find-global-eq-symbol o:lsymbol.
+find-global-eq-symbol EqSym :-
+  why3.defines (gls EqSym) _,
   (why3.ls-name EqSym "(=)" ; why3.ls-name EqSym "infix_eq" ; why3.ls-name EqSym "infix =").
 
 % Build argument types for a constructor, instantiating type parameters from BaseTy.
@@ -94,9 +83,20 @@ instantiate-constructor-type (tyapp arr [ArgTy, RestTy]) BaseTy [ArgTy | ArgTys]
   instantiate-constructor-type RestTy BaseTy ArgTys.
 instantiate-constructor-type BaseTy BaseTy [].
 
+% Fields of the compared type recurse through the symbol being defined
+% (the nonlinear head of the first clause requires the field type to be
+% the compared type); the second clause offers the global equality as the
+% general case, preferred second by clause order.
+%
+% Note: the recursive branch builds a well-formed application of the
+% symbol being defined, but Why3 only accepts recursive logic definitions
+% with a structural termination argument on the parameters of a
+% first-order definition; the constant-with-lambda shape produced by
+% symbol-logic has none, so a recursive datatype still fails at readback.
 pred compare-field i:ty, i:term, i:lsymbol, i:ty, i:term, i:term, o:term.
-compare-field BaseTy EqSelf _EqSym FieldTy X Y (tapply (tapply EqSelf X) Y) :-
-  FieldTy = BaseTy, !.
+compare-field BaseTy EqSelf _EqSym BaseTy X Y Cmp :-
+  why3.app EqSelf X EqX,
+  why3.app EqX Y Cmp.
 compare-field _BaseTy _EqSelf EqSym _FieldTy X Y (tapp EqSym [X, Y] none).
 
 pred mk-vars-from-types i:list ty, i:string, o:list var.
@@ -161,12 +161,12 @@ synth-one-ctor BaseTy EqSelf EqSym BTerm (pr Ctor _Projs) Br :-
   build-ctor-branch BaseTy EqSelf EqSym BTerm Ctor FieldTys XVars YVars Br.
 
 % Synthesize: fun a b -> match a with ...
-pred synth-eq-body-from-ctors i:ty, i:list (pair lsymbol (list (option lsymbol))), i:lsymbol, i:lsymbol, o:decl_body.
+% EqSelf is the occurrence term of the symbol being defined.
+pred synth-eq-body-from-ctors i:ty, i:list (pair lsymbol (list (option lsymbol))), i:term, i:lsymbol, o:decl_body.
 synth-eq-body-from-ctors BaseTy Ctors EqSelf EqSym Body :-
   why3.mk-var "a" BaseTy Va,
   why3.mk-var "b" BaseTy Vb,
-  EqSelfTm = tapp EqSelf [] none,
   (pi A\ ctx-vs A Va =>
     (pi B\ ctx-vs B Vb =>
-      synth-ctor-branches BaseTy EqSelfTm EqSym B Ctors (Branches B))),
+      synth-ctor-branches BaseTy EqSelf EqSym B Ctors (Branches B))),
   Body = dabs Va (a\ dabs Vb (b\ dterm (tcase a (Branches b)))).

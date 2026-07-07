@@ -644,12 +644,7 @@ type local_symbol_decl =
 
 type focused_goal =
   | Goal_formula of WTerm.prsymbol * why_simple_term
-  | Local_symbol of
-      WTerm.lsymbol
-      * (local_symbol_decl
-        [@elpi.binder "term" ctx_for_lsymbol (fun ls -> Ctx_ls ls)])
-      * (focused_goal
-        [@elpi.binder "term" ctx_for_lsymbol (fun ls _decl -> Ctx_ls ls)])
+  | Local_symbol of WTerm.lsymbol * local_symbol_decl * focused_goal
   | Local_prop of string * why_simple_term * focused_goal
   | Local_type of tysymbol * focused_goal
 [@@deriving elpi { declaration; context = [ ctx_for_term; ctx_for_lsymbol ] }]
@@ -657,7 +652,9 @@ type focused_goal =
 [@@elpi.type_doc
   "Focused Why3 goal: a goal formula together with its original goal symbol, \
    plus optional local symbol declarations, local proposition declarations, \
-   and local type declarations to reify as declarations during readback."]
+   and local type declarations to reify as declarations during readback. \
+   Occurrences of a local symbol Ls in the terms below its declaration are \
+   written (tapp Ls [] none)."]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<focused-goal>"]
 
 let goal_decl_to_focused_goal (decl : Why3.Decl.decl) : focused_goal option =
