@@ -17,15 +17,13 @@ check-open-term-attrs (tquant tforall V Bnd) :-
   (pi x\ ctx-vs x V => (
     Bnd x = Body,
     outermost-attrs Body BodyAttrs,
-    why3.attr "body" BodyAttr,
-    std.mem BodyAttrs BodyAttr,
+    std.mem BodyAttrs (attr "body"),
     check-open-term-attrs Body)).
 check-open-term-attrs (tbinop timplies Premise _Conclusion) :-
   Premise = tapp _Eq [Head, _Right] _Ty,
   descend-app-head Head Final,
   outermost-attrs Final Attrs,
-  why3.attr "test" TestAttr,
-  std.mem Attrs TestAttr.
+  std.mem Attrs (attr "test").
 
 w3_run Rest (goal-formula GoalPr Goal)
   [focused-task Rest (goal-formula GoalPr Goal)] :-
