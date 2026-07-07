@@ -1,6 +1,9 @@
-(** Compatibility shim providing fork-specific Elpi API additions. Replaces the
-    Gopiandcode/elpi fork's additions to ContextualConversion,
-    BuiltInContextualData, and Builtin.PPX. *)
+(** Runtime support library for the vendored ppx_elpi (declared in its
+    [ppx_runtime_libraries]). Contains what remains of the Gopiandcode/elpi
+    fork's API that upstream Elpi never adopted: the hypothetical-context
+    readback machinery and the PPX.Doc documentation helpers, plus contextual
+    lifts of a few builtin conversions. Everything here compiles against
+    mainline Elpi; nothing re-implements deleted API. *)
 
 (** Base class wrapping raw hypothetical context. Drop-in for the fork's
     [Elpi.API.ContextualConversion.ctx]. *)
@@ -13,21 +16,10 @@ type 'a ctx_entry =
   ; depth : int
   }
 
-val pp_ctx_entry :
-  (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a ctx_entry -> unit
-
 type 'a ctx_field = 'a ctx_entry Elpi.API.RawData.Constants.Map.t
 
 val pp_ctx_field :
   (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a ctx_field -> unit
-
-(** Fork-compatible ctx_readback type: builds a context value from raw hyps. *)
-type ('cls, 'csts) ctx_readback =
-     depth:int
-  -> Elpi.API.Data.hyps
-  -> 'csts
-  -> Elpi.API.Data.state
-  -> Elpi.API.Data.state * 'cls * 'csts * Elpi.API.Conversion.extra_goals
 
 (** Context descriptor – replaces the fork's
     [Elpi.API.ContextualConversion.context]. *)
@@ -51,7 +43,8 @@ type ('a, 'k, 'csts) context =
   }
 
 (** Process hyps into state. Drop-in for the fork's
-    [Elpi.API.PPX.readback_context]. *)
+    [Elpi.API.PPX.readback_context]. Context readbacks built from this are typed
+    with the upstream [Elpi.API.ContextualConversion.ctx_readback]. *)
 val readback_context :
      ('a, 'k, 'csts) context
   -> depth:int
@@ -66,19 +59,12 @@ module BuiltInContextualData : sig
   val float : (float, 'c, 'csts) Elpi.API.ContextualConversion.t
   val string : (string, 'c, 'csts) Elpi.API.ContextualConversion.t
 
-  val nominal :
-    (Elpi.API.RawData.constant, 'c, 'csts) Elpi.API.ContextualConversion.t
-
   val list :
        ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
     -> ('a list, 'c, 'csts) Elpi.API.ContextualConversion.t
-
-  val polyA0 : (Elpi.API.Data.term, 'c, 'csts) Elpi.API.ContextualConversion.t
 end
 
 module PPX : sig
-  val char : (char, 'c, 'csts) Elpi.API.ContextualConversion.t
-
   val option :
        ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
     -> ('a option, 'c, 'csts) Elpi.API.ContextualConversion.t
@@ -87,27 +73,6 @@ module PPX : sig
        ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
     -> ('b, 'c, 'csts) Elpi.API.ContextualConversion.t
     -> ('a * 'b, 'c, 'csts) Elpi.API.ContextualConversion.t
-
-  val triple :
-       ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('b, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('a * 'b * 'cc, 'c, 'csts) Elpi.API.ContextualConversion.t
-
-  val quadruple :
-       ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('b, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('d, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('a * 'b * 'cc * 'd, 'c, 'csts) Elpi.API.ContextualConversion.t
-
-  val quintuple :
-       ('a, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('b, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('cc, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('d, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('e, 'c, 'csts) Elpi.API.ContextualConversion.t
-    -> ('a * 'b * 'cc * 'd * 'e, 'c, 'csts) Elpi.API.ContextualConversion.t
 end
 
 module Doc : sig
@@ -126,13 +91,5 @@ module Doc : sig
     -> doc:string
     -> ty:Elpi.API.Conversion.ty_ast
     -> args:Elpi.API.Conversion.ty_ast list
-    -> unit
-
-  val adt :
-       doc:string
-    -> ty:Elpi.API.Conversion.ty_ast
-    -> args:(string * string * Elpi.API.Conversion.ty_ast list) list
-    -> Format.formatter
-    -> unit
     -> unit
 end

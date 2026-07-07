@@ -1,9 +1,15 @@
 (library
+ (name elpi_api_compat)
+ (synopsis "Runtime support library for [@@deriving elpi]")
+ (modules elpi_api_compat)
+ (libraries elpi))
+
+(library
  (name ppx_elpi)
  (synopsis "[@@elpi]")
  (libraries re ppxlib elpi)
  (preprocess (pps ppxlib.metaquot))
- (ppx_runtime_libraries elpi)
+ (ppx_runtime_libraries elpi elpi_api_compat)
  (modules ppx_elpi)
  (kind ppx_rewriter)
  (optional)
