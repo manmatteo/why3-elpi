@@ -197,6 +197,8 @@ external symbol use : theory -> tdecl.
 % Use
 external symbol meta : meta -> (list meta-arg) -> tdecl.
 % Meta
+external symbol clone : meta-arg -> tdecl.
+% Clone of a theory (opaque)
 
 kind focused-task type.
 external symbol focused-task : list tdecl -> focused-goal -> focused-task.

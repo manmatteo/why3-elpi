@@ -249,7 +249,10 @@ and tdecl =
             [ meta.Elpi.API.ContextualConversion.ty
             ; Elpi.API.ContextualConversion.TyApp
                 ("list", meta_arg.Elpi.API.ContextualConversion.ty, [])
-            ])
+            ];
+        Elpi_api_compat.Doc.constructor fmt ~ty:kind ~name:"clone"
+          ~doc:"Clone of a theory (opaque)"
+          ~args:[ opaque_tdecl.Elpi.API.Conversion.ty ])
   ; pp =
       (fun fmt t ->
         match t.td_node with
