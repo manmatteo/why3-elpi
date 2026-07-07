@@ -1,28 +1,29 @@
 % Structural witness synthesis for eq/ord records.
 % Unlike tc.elpi, this example does not inspect [@instance] declarations.
 % Instead it derives witnesses from the requested type shape by following
-% helper combinator signatures already present in the Why3 task.
+% helper combinator signatures already present in the Why3 task, looked up
+% through the context clauses loaded by why3.with-context.
 
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest (goal-formula GoalPr GoalOut)] :-
-  solve-derive Rest Goal GoalOut.
+  why3.with-context Rest (solve-derive Goal GoalOut).
 
 w3_run Rest Goal [focused-task Rest Goal].
 
-pred solve-derive i:list tdecl, i:term, o:term.
-solve-derive Rest (tattr Attrs T) (tattr Attrs Out) :-
-  solve-derive Rest T Out.
-solve-derive Rest (ttrigger Triggers T) (ttrigger Triggers Out) :-
-  solve-derive Rest T Out.
-solve-derive Rest (tquant texists V Bnd) (tlet Witness V (x\ Body x)) :-
+pred solve-derive i:term, o:term.
+solve-derive (tattr Attrs T) (tattr Attrs Out) :-
+  solve-derive T Out.
+solve-derive (ttrigger Triggers T) (ttrigger Triggers Out) :-
+  solve-derive T Out.
+solve-derive (tquant texists V Bnd) (tlet Witness V (x\ Body x)) :-
   why3.var-type V (tyapp DictTySym [TargetTy]),
   supported-dict-family DictTySym,
-  derive-dict-term Rest DictTySym TargetTy Witness,
+  derive-dict-term DictTySym TargetTy Witness,
   (pi X\ ctx-vs X V => (
-    solve-derive Rest (Bnd X) (Body X))).
-solve-derive Rest (tquant texists V Bnd) (tquant texists V (x\ Body x)) :-
+    solve-derive (Bnd X) (Body X))).
+solve-derive (tquant texists V Bnd) (tquant texists V (x\ Body x)) :-
   (pi X\ ctx-vs X V => (
-    solve-derive Rest (Bnd X) (Body X))).
-solve-derive _ Goal Goal.
+    solve-derive (Bnd X) (Body X))).
+solve-derive Goal Goal.
 
 pred supported-dict-family i:tysymbol.
 supported-dict-family DictTySym :-
@@ -30,34 +31,34 @@ supported-dict-family DictTySym :-
 supported-dict-family DictTySym :-
   why3.tysymbol-name DictTySym "ord".
 
-pred derive-dict-term i:list tdecl, i:tysymbol, i:ty, o:term.
-derive-dict-term Rest DictTySym (tyapp _TySym [] as TargetTy) (tapp Ls [] none) :-
-  direct-ground-builder Rest DictTySym TargetTy Ls.
-derive-dict-term Rest DictTySym (tyapp _TySym [ArgTy] as TargetTy) (tapp Ls [ArgWitness] none) :-
-  derive-dict-term Rest DictTySym ArgTy ArgWitness,
-  unary-builder Rest DictTySym ArgTy TargetTy Ls.
-derive-dict-term Rest DictTySym (tyapp _TySym [Ty1, Ty2] as TargetTy) (tapp Ls [Arg1, Arg2] none) :-
-  derive-dict-term Rest DictTySym Ty1 Arg1,
-  derive-dict-term Rest DictTySym Ty2 Arg2,
-  binary-builder Rest DictTySym Ty1 Ty2 TargetTy Ls.
-derive-dict-term _ DictTySym Ty _ :-
+pred derive-dict-term i:tysymbol, i:ty, o:term.
+derive-dict-term DictTySym (tyapp _TySym [] as TargetTy) (tapp Ls [] none) :-
+  direct-ground-builder DictTySym TargetTy Ls.
+derive-dict-term DictTySym (tyapp _TySym [ArgTy] as TargetTy) (tapp Ls [ArgWitness] none) :-
+  derive-dict-term DictTySym ArgTy ArgWitness,
+  unary-builder DictTySym ArgTy TargetTy Ls.
+derive-dict-term DictTySym (tyapp _TySym [Ty1, Ty2] as TargetTy) (tapp Ls [Arg1, Arg2] none) :-
+  derive-dict-term DictTySym Ty1 Arg1,
+  derive-dict-term DictTySym Ty2 Arg2,
+  binary-builder DictTySym Ty1 Ty2 TargetTy Ls.
+derive-dict-term DictTySym Ty _ :-
   why3.tysymbol-name DictTySym DictName,
   print "cannot derive" DictName "for" Ty,
   fail.
 
-pred direct-ground-builder i:list tdecl, i:tysymbol, i:ty, o:lsymbol.
-direct-ground-builder Rest DictTySym TargetTy Ls :-
-  available-logic-symbol Rest Ls (tyapp DictTySym [TargetTy]).
+pred direct-ground-builder i:tysymbol, i:ty, o:lsymbol.
+direct-ground-builder DictTySym TargetTy Ls :-
+  available-logic-symbol Ls (tyapp DictTySym [TargetTy]).
 
-pred unary-builder i:list tdecl, i:tysymbol, i:ty, i:ty, o:lsymbol.
-unary-builder Rest DictTySym ArgTy TargetTy Ls :-
-  available-logic-symbol Rest Ls FullTy,
+pred unary-builder i:tysymbol, i:ty, i:ty, o:lsymbol.
+unary-builder DictTySym ArgTy TargetTy Ls :-
+  available-logic-symbol Ls FullTy,
   instantiate-builder-type FullTy (tyapp DictTySym [TargetTy]) [ArgDictTy],
   ArgDictTy = tyapp DictTySym [ArgTy].
 
-pred binary-builder i:list tdecl, i:tysymbol, i:ty, i:ty, i:ty, o:lsymbol.
-binary-builder Rest DictTySym Ty1 Ty2 TargetTy Ls :-
-  available-logic-symbol Rest Ls FullTy,
+pred binary-builder i:tysymbol, i:ty, i:ty, i:ty, o:lsymbol.
+binary-builder DictTySym Ty1 Ty2 TargetTy Ls :-
+  available-logic-symbol Ls FullTy,
   instantiate-builder-type FullTy (tyapp DictTySym [TargetTy]) [ArgDictTy1, ArgDictTy2],
   ArgDictTy1 = tyapp DictTySym [Ty1],
   ArgDictTy2 = tyapp DictTySym [Ty2].
@@ -69,9 +70,7 @@ instantiate-builder-type (tyapp arr [ArgTy, RestTy]) QueryTy [ArgTy | ArgTys] :-
   instantiate-builder-type RestTy QueryTy ArgTys.
 instantiate-builder-type QueryTy QueryTy [].
 
-pred available-logic-symbol i:list tdecl, o:lsymbol, o:ty.
-available-logic-symbol Rest Ls FullTy :-
-  std.mem Rest (decl D),
-  why3.decl-defines D Refs,
-  std.mem Refs (gls Ls),
+pred available-logic-symbol o:lsymbol, o:ty.
+available-logic-symbol Ls FullTy :-
+  why3.defines (gls Ls) _,
   why3.ls-full-type Ls FullTy.

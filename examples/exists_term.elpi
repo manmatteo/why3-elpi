@@ -2,28 +2,20 @@
 %
 % This is a small proof point for typed term arguments passed through Why3's
 % Args_wrapper machinery before entering ELPI.
-%
 
 w3_run Witness Rest Goal [focused-task Rest GoalOut] :-
-  instantiate-exists-goal Witness Goal GoalOut,
-  !.
+  why3.goal-conclusion Goal _GoalPr Conclusion,
+  instantiate-exists Witness Conclusion ConclusionOut,
+  why3.set-conclusion Goal ConclusionOut GoalOut.
 
 w3_run _ Rest Goal [focused-task Rest Goal].
 
-pred instantiate-exists-goal i:term, i:focused-goal, o:focused-goal.
-instantiate-exists-goal Witness (goal-formula GoalPr Goal) (goal-formula GoalPr GoalOut) :-
-  instantiate-exists Witness Goal GoalOut.
-instantiate-exists-goal Witness (local-prop Name Hyp Tail) (local-prop Name Hyp TailOut) :-
-  instantiate-exists-goal Witness Tail TailOut.
-instantiate-exists-goal Witness (local-symbol Ls Decl Tail) (local-symbol Ls Decl TailOut) :-
-  pi x\ instantiate-exists-goal Witness (Tail x) (TailOut x).
-instantiate-exists-goal Witness (local-type Ts Tail) (local-type Ts TailOut) :-
-  instantiate-exists-goal Witness Tail TailOut.
-
-pred instantiate-exists i:term, i:term, o:term.
+% The attribute and trigger wrappers of the conclusion are preserved around
+% the instantiated body, so this recursion is written on the raw term
+% constructors; the three clause heads are disjoint.
+func instantiate-exists term, term -> term.
 instantiate-exists Witness (tattr Attrs Goal) (tattr Attrs GoalOut) :-
   instantiate-exists Witness Goal GoalOut.
 instantiate-exists Witness (ttrigger Triggers Goal) (ttrigger Triggers GoalOut) :-
   instantiate-exists Witness Goal GoalOut.
-instantiate-exists Witness (tquant texists _V Bnd) GoalOut :-
-  GoalOut = Bnd Witness.
+instantiate-exists Witness (tquant texists _V Bnd) (Bnd Witness).

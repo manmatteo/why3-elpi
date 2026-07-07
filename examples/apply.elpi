@@ -5,85 +5,120 @@
 % substituting their bound term through the body. ELPI's unification then
 % instantiates X when the lemma conclusion is matched against the current goal.
 % When no explicit witness is provided, premises already present as local
-% hypotheses are discharged automatically.
+% hypotheses are discharged automatically; hypotheses in scope are why3.hyp
+% clauses loaded by why3.with-hyps, so discharging is clause resolution,
+% the same mechanism as the why3.premise lemma lookup.
 %
 % Example: lemma  nice_trans : forall x y. x <= y -> nice x -> nice y
 %          goal   nice 3 -> nice 7
 %   Matching the conclusion instantiates y = 7, then discharge-premises
 %   matches "nice x" against hypothesis "nice 3" and leaves the subgoal 3 <= 7.
 %
+% The lemma is looked up with why3.premise among the context clauses loaded
+% by why3.with-context, and each undischarged premise becomes a subgoal
+% grafted onto the local declarations of the current goal. Term decomposition
+% chains the total classifiers why3.as-quant / why3.as-implies / why3.as-let:
+% every helper dispatches on some/none, so no clause needs a cut or a
+% negation.
+%
 % Registered Why3 wrapper:  elpi_apply <prop> [with] <term list>
 
 w3_run Target WithTerms Decls Goal OutTasks :-
-  focused-goal-shape Goal GoalPr GoalConclusion GoalHyps,
-  find-lemma Decls Target LemmaT,
+  why3.with-context Decls (apply-lemma Target WithTerms Goal SubGoals),
+  std.map SubGoals (g\ task\ task = focused-task Decls g) OutTasks.
+
+w3_run _ _ Decls Goal [focused-task Decls Goal].
+
+pred apply-lemma i:prsymbol, i:list term, i:focused-goal, o:list focused-goal.
+apply-lemma Target WithTerms Goal SubGoals :-
+  why3.with-hyps Goal (apply-in-goal Target WithTerms Goal SubGoals).
+
+pred apply-in-goal i:prsymbol, i:list term, i:focused-goal, o:list focused-goal,
+  i:prsymbol, i:term.
+apply-in-goal Target WithTerms Goal SubGoals GoalPr ConclusionTerm :-
+  goal-shape ConclusionTerm GoalConclusion TermHyps,
+  why3.premise Target LemmaT,
   peel-lemma LemmaT ForallVars LemmaPremises LemmaConclusion,
   LemmaConclusion = GoalConclusion,
   instantiate-with ForallVars WithTerms,
-  discharge-premises LemmaPremises GoalHyps OpenPremises,
-  std.map OpenPremises (p\ task\ sigma GoalOut\
-    std.rev GoalHyps RevHyps,
-    std.fold RevHyps (goal-formula GoalPr p) (h\ g\ r\ r = local-prop "hyp" h g) GoalOut,
-    task = focused-task Decls GoalOut
-  ) OutTasks.
+  std.map TermHyps (h\ p\ p = pr "hyp" h) TermHypPairs,
+  why3.assume-hyps TermHypPairs
+    (discharge-premises LemmaPremises OpenPremises),
+  std.map OpenPremises (p\ g\ sigma Inner\
+    why3.wrap-hyps TermHypPairs (goal-formula GoalPr p) Inner,
+    why3.graft-conclusion Goal Inner g
+  ) SubGoals.
 
+% Decompose the goal formula into a conclusion to match the lemma against
+% and the hypotheses above it: implications are collected, existentials are
+% opened with a fresh unification variable, and let-binders are substituted.
+% Universal quantifications stop the decomposition.
+func goal-shape term -> term, list term.
+goal-shape T C Hs :- why3.as-quant T Q, goal-shape-quant T Q C Hs.
 
-w3_run _ _ Decls Goal [focused-task Decls Goal].
-pred goal-shape i:term, o:term, o:list term.
-goal-shape (tattr _ T) C Hs :- goal-shape T C Hs.
-goal-shape (ttrigger _ T) C Hs :- goal-shape T C Hs.
-goal-shape (tquant texists _ Bnd) C Hs :- goal-shape (Bnd X_) C Hs.
-goal-shape (tlet T _ Bnd) C Hs :- goal-shape (Bnd T) C Hs.
-goal-shape (tbinop timplies H Decls) C [H | Hs] :- !, goal-shape Decls C Hs.
-goal-shape T T [].
+func goal-shape-quant term, option (pair quant (pair var (term -> term))) -> term, list term.
+goal-shape-quant _ (some (pr texists (pr _ Bnd))) C Hs :- goal-shape (Bnd X_) C Hs.
+goal-shape-quant _ (some (pr tforall (pr V Bnd))) (tquant tforall V Bnd) [].
+goal-shape-quant T none C Hs :- why3.as-implies T Imp, goal-shape-implies T Imp C Hs.
 
-pred focused-goal-shape i:focused-goal, o:prsymbol, o:term, o:list term.
-focused-goal-shape (local-prop _ H Goal) Pr C [H | Hs] :-
-  focused-goal-shape Goal Pr C Hs.
-focused-goal-shape (goal-formula Pr T) Pr C Hs :-
-  goal-shape T C Hs.
+func goal-shape-implies term, option (pair term term) -> term, list term.
+goal-shape-implies _ (some (pr H Rest)) C [H | Hs] :- goal-shape Rest C Hs.
+goal-shape-implies T none C Hs :- why3.as-let T Lt, goal-shape-let T Lt C Hs.
 
-pred peel-lemma i:term, o:list term, o:list term, o:term.
-peel-lemma (tattr _ T) Vs Ps C :- peel-lemma T Vs Ps C.
-peel-lemma (ttrigger _ T) Vs Ps C :- peel-lemma T Vs Ps C.
-peel-lemma (tlet T _ Bnd) Vs Ps C :- peel-lemma (Bnd T) Vs Ps C.
-peel-lemma (tquant tforall _ Bnd) [X_ | Vs] Ps C :-
-  !, peel-lemma (Bnd X_) Vs Ps C.
-peel-lemma T [] Ps C :- peel-lemma-tail T Ps C.
+func goal-shape-let term, option (pair term (pair var (term -> term))) -> term, list term.
+goal-shape-let _ (some (pr Def (pr _ Bnd))) C Hs :- goal-shape (Bnd Def) C Hs.
+goal-shape-let T none C [] :- why3.strip T C.
 
-pred peel-lemma-tail i:term, o:list term, o:term.
-peel-lemma-tail (tattr _ T) Ps C :- peel-lemma-tail T Ps C.
-peel-lemma-tail (ttrigger _ T) Ps C :- peel-lemma-tail T Ps C.
-peel-lemma-tail (tlet T _ Bnd) Ps C :- peel-lemma-tail (Bnd T) Ps C.
-peel-lemma-tail (tquant tforall _ Bnd) Ps C :- peel-lemma-tail (Bnd X_) Ps C.
-peel-lemma-tail (tquant texists _ Bnd) Ps C :- peel-lemma-tail (Bnd X_) Ps C.
-peel-lemma-tail (tbinop timplies P Tail) [P | Ps] C :-
-  peel-lemma-tail Tail Ps C.
-peel-lemma-tail C [] C.
+% Peel the outer forall prefix of the lemma, collecting one fresh
+% unification variable per binder, then collect its premises.
+func peel-lemma term -> list term, list term, term.
+peel-lemma T Vs Ps C :- why3.as-quant T Q, peel-quant T Q Vs Ps C.
 
+func peel-quant term, option (pair quant (pair var (term -> term))) -> list term, list term, term.
+peel-quant _ (some (pr tforall (pr _ Bnd))) [X_ | Vs] Ps C :- peel-lemma (Bnd X_) Vs Ps C.
+peel-quant _ (some (pr texists (pr V Bnd))) [] Ps C :- peel-lemma-tail (tquant texists V Bnd) Ps C.
+peel-quant T none Vs Ps C :- why3.as-let T Lt, peel-let T Lt Vs Ps C.
+
+func peel-let term, option (pair term (pair var (term -> term))) -> list term, list term, term.
+peel-let _ (some (pr Def (pr _ Bnd))) Vs Ps C :- peel-lemma (Bnd Def) Vs Ps C.
+peel-let T none [] Ps C :- peel-lemma-tail T Ps C.
+
+func peel-lemma-tail term -> list term, term.
+peel-lemma-tail T Ps C :- why3.as-quant T Q, peel-tail-quant T Q Ps C.
+
+% Both quantifiers open with a fresh variable here, so one clause covers
+% them: the quantifier tag is simply not inspected.
+func peel-tail-quant term, option (pair quant (pair var (term -> term))) -> list term, term.
+peel-tail-quant _ (some (pr _ (pr _ Bnd))) Ps C :- peel-lemma-tail (Bnd X_) Ps C.
+peel-tail-quant T none Ps C :- why3.as-implies T Imp, peel-tail-implies T Imp Ps C.
+
+func peel-tail-implies term, option (pair term term) -> list term, term.
+peel-tail-implies _ (some (pr P Rest)) [P | Ps] C :- peel-lemma-tail Rest Ps C.
+peel-tail-implies T none Ps C :- why3.as-let T Lt, peel-tail-let T Lt Ps C.
+
+func peel-tail-let term, option (pair term (pair var (term -> term))) -> list term, term.
+peel-tail-let _ (some (pr Def (pr _ Bnd))) Ps C :- peel-lemma-tail (Bnd Def) Ps C.
+peel-tail-let T none [] C :- why3.strip T C.
+
+% Unify the explicit witnesses with a subsequence of the peeled forall
+% variables. The clauses overlap on purpose: this is a relational search,
+% and the first solution assigns each witness to the earliest variable it
+% unifies with.
 pred instantiate-with i:list term, i:list term.
 instantiate-with _ [].
-instantiate-with [V | Vs] [T | Ts] :-
-  V = T,
-  !,
-  instantiate-with Vs Ts.
-instantiate-with [_ | Vs] Ts :-
-  instantiate-with Vs Ts.
+instantiate-with [T | Vs] [T | Ts] :- instantiate-with Vs Ts.
+instantiate-with [_ | Vs] [T | Ts] :- instantiate-with Vs [T | Ts].
 
-pred discharge-premises i:list term, i:list term, o:list term.
-discharge-premises [] _ [].
-discharge-premises [P | Ps] Hyps Out :-
-  std.mem Hyps P,
-  !,
-  discharge-premises Ps Hyps Out.
-discharge-premises [P | Ps] Hyps [P | Out] :-
-  discharge-premises Ps Hyps Out.
-
-pred find-lemma i:list tdecl, i:prsymbol, o:term.
-find-lemma [decl D | _] Target T :-
-  why3.decl-kind D decl-prop,
-  why3.decl-defines D Refs,
-  std.mem Refs (gpr Target),
-  why3.decl-body D (gpr Target) (dterm T).
-find-lemma [_ | Rest] Target T :- find-lemma Rest Target T.
-
+% Premises that unify with a hypothesis in scope are discharged; the others
+% are kept as open subgoals. A hypothesis in scope is a why3.hyp clause:
+% the goal's local hypotheses loaded by why3.with-hyps, plus the
+% implications of its conclusion assumed by why3.assume-hyps. The recursive
+% clauses overlap on purpose: discharging is a relational choice, and the
+% clause order makes "discharge whenever possible" the first solution found.
+pred discharge-premises i:list term, o:list term.
+discharge-premises [] [].
+discharge-premises [P | Ps] Out :-
+  why3.hyp _ P,
+  discharge-premises Ps Out.
+discharge-premises [P | Ps] [P | Out] :-
+  discharge-premises Ps Out.

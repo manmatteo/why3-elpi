@@ -3,14 +3,18 @@
 
 w3_run Rest (goal-formula GoalPr Goal) Tasks :-
   flatten-and Goal Terms,
-  std.map Terms (g\ focused-task Rest (goal-formula GoalPr g)) Tasks.
+  std.map Terms (g\ t\ t = focused-task Rest (goal-formula GoalPr g)) Tasks.
 
 w3_run Rest Goal [focused-task Rest Goal].
 
-pred flatten-and i:term, o:list term.
-flatten-and (tattr _ T) Out :- flatten-and T Out.
-flatten-and (tbinop tand A B) Out :-
+% Dispatch on the total why3.as-and classifier: conjunctions are flattened,
+% any other formula is a leaf. some/none are disjoint patterns.
+func flatten-and term -> list term.
+flatten-and T Out :- why3.as-and T Conj, flatten-step T Conj Out.
+
+func flatten-step term, option (pair term term) -> list term.
+flatten-step _ (some (pr A B)) Out :-
   flatten-and A LA,
   flatten-and B LB,
   std.append LA LB Out.
-flatten-and T [T].
+flatten-step T none [T].

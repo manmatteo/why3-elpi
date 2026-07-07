@@ -1,8 +1,13 @@
 % Simplified but fuller version of Why3's introduction transform.
 %
 % It repeatedly introduces:
-% - top-level forall binders as local variable declarations
+% - top-level forall binders as local constant declarations
 % - top-level implications as local hypotheses
+%
+% Dispatch chains the total classifiers why3.as-forall and why3.as-implies:
+% each helper matches some/none, which are disjoint patterns — no cut and
+% no negation as failure. The original goal term is carried alongside so
+% the stop case can return it with its attributes intact.
 
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   intro-term GoalPr Goal GoalOut.
@@ -10,25 +15,32 @@ w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
 w3_run Rest Goal [focused-task Rest Goal].
 
 pred intro-term i:prsymbol, i:term, o:focused-goal.
+intro-term GoalPr T GoalOut :-
+  why3.as-forall T Fa,
+  intro-forall GoalPr T Fa GoalOut.
 
-intro-term GoalPr (tattr _ T) GoalOut :- intro-term GoalPr T GoalOut.
-intro-term GoalPr (ttrigger _ T) GoalOut :- intro-term GoalPr T GoalOut.
-intro-term GoalPr (tquant tforall V Bnd) GoalOut :-
-  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
-    intro-term GoalPr Body InnerGoal).
-intro-term GoalPr (tbinop timplies Premise Body) (local-prop HypName Premise GoalOut) :-
+pred intro-forall i:prsymbol, i:term, i:option (pair var (term -> term)), o:focused-goal.
+intro-forall GoalPr _ (some (pr V Bnd)) (Wrap Inner) :-
+  why3.intro-var V Bnd Body Wrap,
+  intro-term GoalPr Body Inner.
+intro-forall GoalPr T none GoalOut :-
+  why3.as-implies T Imp,
+  intro-implies GoalPr T Imp GoalOut.
+
+pred intro-implies i:prsymbol, i:term, i:option (pair term term), o:focused-goal.
+intro-implies GoalPr _ (some (pr Premise Body)) (local-prop HypName Premise GoalOut) :-
   premise-name Premise HypName,
   intro-term GoalPr Body GoalOut.
-intro-term GoalPr Goal (goal-formula GoalPr Goal).
+intro-implies GoalPr T none (goal-formula GoalPr T).
 
-
+% The name of an introduced hypothesis comes from a hyp_name:<name>
+% attribute when the premise carries one, and defaults to "H".
 pred premise-name i:term, o:string.
-premise-name (tattr Attrs _) Name :- attr-hyp-name Attrs Name.
-premise-name _ "H".
+premise-name Premise Name :-
+  why3.term-attrs Premise Attrs,
+  why3.attr-value Attrs "hyp_name" NameOpt,
+  name-or-default NameOpt Name.
 
-pred attr-hyp-name i:list attribute, o:string.
-attr-hyp-name [Attr | _] Name :-
-  why3.attr-string Attr AttrStr,
-  rex.split ":" AttrStr ["hyp_name", Name].
-attr-hyp-name [_ | Attrs] Name :-
-  attr-hyp-name Attrs Name.
+func name-or-default option string -> string.
+name-or-default (some Name) Name.
+name-or-default none "H".

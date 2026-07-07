@@ -1,14 +1,15 @@
 % Minimal experiment for opening Why3 quantifier binders.
 %
 % This deliberately avoids all the extra noise of `intros_full`: no implication
-% handling, no host-side symbol creation. The only point is to test the
-% two local context patterns
+% handling. The point is to test the two ways of opening a binder:
 %
-%   pi x\ ctx-vs x V => ...
-%   pi x\ ctx-ls x Ls => ...
+% - why3.intro-var, which introduces a local constant for the bound variable
+% - pi x\ ctx-vs x V => ..., which opens the binder with a fresh nominal
+%   so that builtins (like the pretty printer) can be called on open terms
 %
-% generated from Why3 binders. We move under leading foralls, recurse on the
-% opened body, then close the binder again.
+% We move under leading foralls, recurse on the opened body, then close the
+% binder again. Dispatch goes through the total why3.as-forall classifier,
+% so the clauses are disjoint by pattern matching on some/none.
 
 w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
   rewrite-term Goal GoalTermOut,
@@ -18,23 +19,30 @@ w3_run Rest (goal-formula GoalPr Goal) [focused-task Rest GoalOut] :-
 
 w3_run Rest Goal [focused-task Rest Goal].
 
-pred focus-term i:prsymbol, i:term, o:focused-goal.
+func focus-term prsymbol, term -> focused-goal.
+focus-term GoalPr T GoalOut :-
+  why3.as-forall T Fa,
+  focus-step GoalPr Fa GoalOut.
 
-focus-term GoalPr (tattr _ T) GoalOut :- focus-term GoalPr T GoalOut.
-focus-term GoalPr (ttrigger _ T) GoalOut :- focus-term GoalPr T GoalOut.
-focus-term GoalPr (tquant tforall V Bnd) GoalOut :-
-  @open-forall-local-param! V Bnd GoalOut (Body\ InnerGoal\
-    focus-term GoalPr Body InnerGoal).
-focus-term GoalPr _ (goal-formula GoalPr ttrue).
+func focus-step prsymbol, option (pair var (term -> term)) -> focused-goal.
+focus-step GoalPr (some (pr V Bnd)) (Wrap Inner) :-
+  why3.intro-var V Bnd Body Wrap,
+  focus-term GoalPr Body Inner.
+focus-step GoalPr none (goal-formula GoalPr ttrue).
 
+% Body and BodyStr live under the pi: a clause-level variable could not
+% capture the fresh nominal x, so the unification with the opened body
+% would fail as soon as the body actually mentions x.
 pred rewrite-term i:term, o:term.
-rewrite-term (tattr Attrs T) (tattr Attrs T') :- rewrite-term T T'.
-rewrite-term (ttrigger Tr T) (ttrigger Tr T') :- rewrite-term T T'.
-rewrite-term (tquant tforall V Bnd)
-             (tquant tforall V (x\ BodyOut x)) :-
-  (pi x\ ctx-vs x V => (
+rewrite-term T Out :-
+  why3.as-forall T Fa,
+  rewrite-step Fa Out.
+
+pred rewrite-step i:option (pair var (term -> term)), o:term.
+rewrite-step (some (pr V Bnd)) (tquant tforall V (x\ BodyOut x)) :-
+  (pi x\ ctx-vs x V => sigma Body\ sigma BodyStr\ (
     Bnd x = Body,
-  why3.pp-term Body BodyStr,
-  print "open-body" BodyStr,
+    why3.pp-term Body BodyStr,
+    print "open-body" BodyStr,
     rewrite-term Body (BodyOut x))).
-rewrite-term _ ttrue.
+rewrite-step none ttrue.
