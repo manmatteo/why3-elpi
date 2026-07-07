@@ -7,13 +7,8 @@ let in_ctx_for_ty = Ty.in_ctx_for_why_simple_ty
 let in_ctx_for_term = Term.in_ctx_for_why_simple_term
 let pp_ctx_for_term = Term.pp_ctx_for_term
 let option_map_decl_body d g = decl_body_of_gref d g
-let attrs_of_sattr attrs = Why3.Ident.Sattr.elements attrs
+let attrs_of_sattr = Term.attrs_of_sattr
 let attrs_of_ident id = attrs_of_sattr id.Why3.Ident.id_attrs
-
-let sattr_of_attrs attrs =
-  List.fold_left
-    (fun sattr attr -> Why3.Ident.Sattr.add attr sattr)
-    Why3.Ident.Sattr.empty attrs
 
 let why3_builtin_declarations =
   let open Elpi.API.BuiltIn in
@@ -310,37 +305,6 @@ let why3_builtin_declarations =
                          symbol has no value type (i.e. is a proposition)" ) )
               )
           , fun ls _ ~depth:_ _ctx _ _ -> ?:(ls.ls_value) )
-      , DocAbove )
-  ; MLCode
-      ( Pred
-          ( "why3.attr"
-          , CIn
-              ( Elpi_api_compat.BuiltInContextualData.string
-              , "S"
-              , COut
-                  ( attribute
-                  , "Attr"
-                  , Read
-                      ( in_ctx_for_term
-                      , "Create a Why3 attribute from its string \
-                         representation." ) ) )
-          , fun name _ ~depth:_ _ctx _ _ -> !:(Why3.Ident.create_attribute name)
-          )
-      , DocAbove )
-  ; MLCode
-      ( Pred
-          ( "why3.attr-string"
-          , CIn
-              ( attribute
-              , "Attr"
-              , COut
-                  ( Elpi_api_compat.BuiltInContextualData.string
-                  , "S"
-                  , Read
-                      ( in_ctx_for_term
-                      , "Project the string representation of a Why3 attribute."
-                      ) ) )
-          , fun attr _ ~depth:_ _ctx _ _ -> !:(attr.Why3.Ident.attr_string) )
       , DocAbove )
   ; MLCode
       ( Pred

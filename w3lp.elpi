@@ -59,9 +59,10 @@ external symbol timplies : binop.
 external symbol tiff : binop.
 % Tiff
 
-% Embedding of Why3 attributes
+% Why3 attributes, embedded structurally: (attr S) is the attribute with string representation S.
 kind attribute type.
-
+external symbol attr : string -> attribute.
+% Attr
 
 % ctx_for_term
 kind ctx-for-term type.

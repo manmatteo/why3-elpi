@@ -104,17 +104,16 @@ module WTerm = struct
      | Tiff -> Format.fprintf fmt "<=>"]
 end
 
-type attribute = Why3.Ident.attribute
-[@@elpi.opaque
-  { Elpi.API.OpaqueData.name = "attribute"
-  ; doc = "Embedding of Why3 attributes"
-  ; pp = (fun fmt attr -> Format.fprintf fmt "%s" attr.Why3.Ident.attr_string)
-  ; compare = Why3.Ident.attr_compare
-  ; hash = Why3.Ident.attr_hash
-  ; hconsed = false
-  ; constants = []
-  }]
+(* Attributes are embedded structurally by their string: Why3 attributes are
+   hashconsed by Ident.create_attribute, so reading an (attr S) back yields the
+   identical Why3 attribute and no identity is lost at the boundary. *)
+type attribute = Attr of string
 [@@deriving elpi { declaration }]
+[@@elpi.type_code "attribute"]
+[@@elpi.type_doc
+  "Why3 attributes, embedded structurally: (attr S) is the attribute with \
+   string representation S."]
+[@@elpi.pp fun fmt (Attr s) -> Format.fprintf fmt "%s" s]
 
 module Vsym_tags = struct
   open Why3.Term
@@ -231,7 +230,7 @@ type decl_body =
    the final body term."]
 [@@elpi.pp fun fmt _ -> Format.fprintf fmt "<decl-body>"]
 
-let pp_attribute fmt attr = Format.fprintf fmt "%s" attr.Why3.Ident.attr_string
+let pp_attribute fmt (Attr s) = Format.fprintf fmt "%s" s
 
 let pp_attrs fmt attrs =
   match attrs with
@@ -325,11 +324,15 @@ let rec pp_decl_body fmt = function
   | Dabs (v, body) ->
     Format.fprintf fmt "%a => %a" WPretty.print_vs v pp_decl_body body
 
-let attrs_of_sattr attrs = Why3.Ident.Sattr.elements attrs
+let attrs_of_sattr attrs =
+  List.map
+    (fun a -> Attr a.Why3.Ident.attr_string)
+    (Why3.Ident.Sattr.elements attrs)
 
 let sattr_of_attrs attrs =
   List.fold_left
-    (fun sattr attr -> Why3.Ident.Sattr.add attr sattr)
+    (fun sattr (Attr s) ->
+      Why3.Ident.Sattr.add (Why3.Ident.create_attribute s) sattr)
     Why3.Ident.Sattr.empty attrs
 
 let term_attrs (t : WTerm.term) = attrs_of_sattr t.t_attrs

@@ -5,7 +5,7 @@ val why3_builtin_declarations : Elpi.API.BuiltIn.declaration list
 val document : Elpi.API.BuiltIn.declaration list -> unit
 
 (* Embeddings of terms, types and tasks *)
-val attribute : (Why3.Ident.attribute, 'a, 'b) Elpi.API.ContextualConversion.t
+val attribute : (Term.attribute, 'a, 'b) Elpi.API.ContextualConversion.t
 val term : (Why3.Term.term, 'a, 'b) Elpi.API.ContextualConversion.t
 val lsymbol : (Why3.Term.lsymbol, 'a, 'b) Elpi.API.ContextualConversion.t
 val ty : (Why3.Ty.ty, 'a, 'b) Elpi.API.ContextualConversion.t
