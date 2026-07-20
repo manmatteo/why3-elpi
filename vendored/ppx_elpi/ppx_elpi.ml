@@ -223,8 +223,6 @@ let att_elpi_binder = Attribute.(declare "elpi.binder" Context.core_type (single
   String.lowercase_ascii txt
 let elpi_map_name x = "Elpi_"^x^"_Map"
 let elpi_state_name x = "elpi_"^x^"_state"
-let elpi_ctx_class_module_name x = "Ctx_for_" ^ x
-let elpi_ctx_class_name x = elpi_ctx_class_module_name x ^ ".t"
 let elpi_ctx_object_name x = "ctx_for_" ^ x
 let elpi_readback_ctx_name x = "context_made_of_" ^ x
 let elpi_in_ctx_for_name x = "in_" ^ elpi_ctx_object_name x
@@ -396,7 +394,6 @@ type type_extras = {
   ty_constants : structure_item list;
   ty_embed : value_binding;
   ty_readback : value_binding;
-  ty_ctx_class_type : structure_item;
   ty_conversion : value_binding list;
   ty_conversion_name : string;
   ty_elpi_declaration : elpi_declaration;
@@ -1178,19 +1175,6 @@ let abstract_expr_over_params (module B : Ast_builder.S) vl f e = let open B in
   in
     aux vl
 
-let ctx_class_type_for_tyd (module B : Ast_builder.S) all_ctx { name; _ } = let open B in
-  pstr_module @@ module_binding ~name:(Located.mk (Some (elpi_ctx_class_module_name name))) ~expr:(pmod_structure [
-  pstr_class_type [class_infos ~virt:Concrete ~params:[]
-    ~name:(Located.mk "t")
-    ~expr:(pcty_signature @@ class_signature ~self:[%type: _] ~fields:(
-      (pctf_inherit (pcty_constr (Located.lident "Elpi_api_compat.ctx") []))
-      :: List.flatten (SSet.elements all_ctx |> List.(map (fun c ->
-          [
-            pctf_inherit (pcty_constr (Located.lident @@ elpi_ctx_class_name c) []);
-            pctf_method (Located.mk c,Public,Concrete,[%type: [%t ptyp_constr (Located.lident c) [] ] Elpi_api_compat.ctx_field]);
-          ])))))]
-  ])
-
 let conversion_for_tyd (module B : Ast_builder.S) all_ctx { name; params;  elpi_name; elpi_code; elpi_doc; type_decl; pp; index } = let open B in
   let is_pred = option_is_some index in
   let ctx_index_ty_name = option_default "nominal" (option_map (fun x -> option_default "nominal" x.index_ty_name) index) in
@@ -1231,11 +1215,9 @@ let conversion_context_for_tyd (module B : Ast_builder.S) name = let open B in [
     Elpi_api_compat.is_entry_for_nominal = [%e evar @@ elpi_is_ctx_entry_name name ];
     to_key = [%e evar @@ elpi_to_key name ];
     push = [%e evar @@ elpi_push name ];
-    pop = [%e evar @@ elpi_pop name ];
     conv = [%e evar name];
     init = (fun state -> Elpi.API.State.set [%e evar @@ elpi_state_name name ] state [%e initial_state (module B) name]);
-    get = (fun state -> snd @@ Elpi.API.State.get [%e evar @@ elpi_state_name name ] state);
-  }]] 
+  }]]
 
 let embed_for_tyd (module B : Ast_builder.S) same_mutrec_block all_ctx { name; params; type_decl; index; _ } = let open B in
   let is_pred = option_is_some index in
@@ -1261,32 +1243,20 @@ let readback_for_tyd (module B : Ast_builder.S) same_mutrec_block all_ctx { name
       value_binding ~pat:(ppat_constraint (pvar (elpi_readback_name name)) (readback_type (module B) name params is_pred all_ctx))
         ~expr:(abstract_expr_over_params (module B) params elpi_readback_name @@ readback (module B) name is_pred def_readback csts)
 
+(* The context readback processes the hypothetical context into state (via
+   readback_context, one call per context type this type depends on) and
+   returns the raw hyps unchanged — the same shape as upstream
+   ContextualConversion.raw_ctx. Conversions are polymorphic in the context
+   type and read everything back from state. *)
 let in_ctx_for_tyd (module B : Ast_builder.S) ctx { name; _ } = let open B in
  let ctx = SSet.elements ctx in
  [
-   pstr_class [class_infos ~virt:Concrete ~params:[]
-    ~name:(Located.mk @@ elpi_ctx_object_name name)
-    ~expr:(pcl_fun Nolabel None (ppat_constraint (pvar "h") (ptyp_constr (Located.lident "Elpi.API.Data.hyps") [])) @@
-           pcl_fun Nolabel None (ppat_constraint (pvar "s") (ptyp_constr (Located.lident "Elpi.API.Data.state") [])) @@
-           pcl_constraint
-            (pcl_structure @@ class_structure ~self:(pvar "_")
-            ~fields:(
-                pcf_inherit Fresh
-                  (pcl_apply (pcl_constr (Located.lident "Elpi_api_compat.ctx") []) [Nolabel,evar "h"]) None
-                :: List.flatten (ctx |> List.map (fun c -> [
-                  pcf_inherit Override
-                  (pcl_apply (pcl_constr (Located.lident @@ elpi_ctx_object_name c) []) [Nolabel,evar "h";Nolabel,evar "s"]) None ;
-                  pcf_method (Located.mk c,Public,Cfk_concrete (Fresh,
-                    [%expr [%e evar @@ elpi_readback_ctx_name c ].Elpi_api_compat.get s]))]))))
-            (pcty_constr (Located.lident @@ elpi_ctx_class_name name) []))]
-;
-   (* apparently you cannot declare a class type and a class with the same name *)
    [%stri let [%p pvar @@ elpi_in_ctx_for_name name ] :
-      ([%t ptyp_constr (Located.lident @@ elpi_ctx_class_name name) []], Elpi.API.Data.constraints) Elpi.API.ContextualConversion.ctx_readback
+      (Elpi.API.Data.hyps, Elpi.API.Data.constraints) Elpi.API.ContextualConversion.ctx_readback
    = fun ~depth h c s -> [%e
      let gls = List.mapi (fun i _ -> Printf.sprintf "gls%d" i) ctx in
      let rec aux = function
-       | [] -> [%expr s, [%e pexp_new @@ Located.lident @@ elpi_ctx_object_name name] h s, c, List.concat [%e elist @@ List.map evar gls ]]
+       | [] -> [%expr s, h, c, List.concat [%e elist @@ List.map evar gls ]]
        | (c,gls) :: cs ->
           [%expr
             let s, [%p pvar gls ] =
@@ -1400,7 +1370,6 @@ let extras_of_task (module B : Ast_builder.S) { types; names; context; ctx_names
       ty_constants = constants_of_tyd (module B) tyd;
       ty_embed = embed_for_tyd (module B) names ctx_names tyd;
       ty_readback = readback_for_tyd (module B) names ctx_names tyd;
-      ty_ctx_class_type = ctx_class_type_for_tyd (module B) ctx_names tyd;
       ty_conversion = conversion_for_tyd (module B) ctx_names tyd;
       ty_conversion_name = tyd.name;
       ty_elpi_declaration = elpi_declaration_of_tyd (module B) tyd;
@@ -1591,7 +1560,6 @@ let tydecls ~loc append_decl append_mapper all_context _r tdls =
 
   List.(concat (map (fun x -> x.ty_constants) ty_extras)) @
   option_default [] (option_map (fun x -> x.ty_context_helpers) ctx_extras) @
-  List.(map (fun x -> x.ty_ctx_class_type) ty_extras) @
 
   begin if opaque_extra <> [] then
     [pstr_value Nonrecursive List.(concat_map (fun x -> x.ty_conversion) opaque_extra)] @

@@ -5,12 +5,6 @@
     lifts of a few builtin conversions. Everything here compiles against
     mainline Elpi; nothing re-implements deleted API. *)
 
-(** Base class wrapping raw hypothetical context. Drop-in for the fork's
-    [Elpi.API.ContextualConversion.ctx]. *)
-class ctx : Elpi.API.Data.hyps -> object
-  method raw : Elpi.API.Data.hyps
-end
-
 type 'a ctx_entry =
   { entry : 'a
   ; depth : int
@@ -32,14 +26,12 @@ type ('a, 'k, 'csts) context =
       -> 'k
       -> 'a ctx_entry
       -> Elpi.API.Data.state
-  ; pop : depth:int -> Elpi.API.Data.state -> 'k -> Elpi.API.Data.state
   ; conv :
       ( Elpi.API.RawData.constant * 'a
       , unit
       , 'csts )
       Elpi.API.ContextualConversion.t
   ; init : Elpi.API.Data.state -> Elpi.API.Data.state
-  ; get : Elpi.API.Data.state -> 'a ctx_field
   }
 
 (** Process hyps into state. Drop-in for the fork's

@@ -2,9 +2,6 @@ open Elpi
 include Term
 include Decl
 include Task
-module Ctx_for_why_simple_term = Term.Ctx_for_why_simple_term
-module Ctx_for_ctx_for_term = Term.Ctx_for_ctx_for_term
-module Ctx_for_ctx_for_lsymbol = Term.Ctx_for_ctx_for_lsymbol
 
 (* Accumulate declarations from Elpi PPX here *)
 let declaration : Elpi.API.BuiltIn.declaration list =
