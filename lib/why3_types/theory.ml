@@ -116,12 +116,6 @@ let elpi_constant_constructor_tdecl_node_Clonec =
   Elpi.API.RawData.Constants.declare_global_symbol
     elpi_constant_constructor_tdecl_node_Clone
 
-module Ctx_for_tdecl_node = struct
-  class type t = object
-    inherit Elpi_api_compat.ctx
-  end
-end
-
 let rec elpi_embed_tdecl =
  fun ~depth:elpi__depth elpi__hyps elpi__constraints elpi__state td ->
   match td.td_node with

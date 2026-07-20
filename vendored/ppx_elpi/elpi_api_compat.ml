@@ -7,13 +7,6 @@
 
 open Elpi.API
 
-(** Base class wrapping raw hypothetical context. Provides the same interface as
-    the fork's [ContextualConversion.ctx]. *)
-class ctx (h : Data.hyps) =
-  object
-    method raw = h
-  end
-
 (** A context entry: a value together with its bind depth. *)
 type 'a ctx_entry =
   { entry : 'a
@@ -43,10 +36,8 @@ type ('a, 'k, 'csts) context =
   { is_entry_for_nominal : Data.hyp -> RawData.constant option
   ; to_key : depth:int -> 'a -> 'k
   ; push : depth:int -> Data.state -> 'k -> 'a ctx_entry -> Data.state
-  ; pop : depth:int -> Data.state -> 'k -> Data.state
   ; conv : (RawData.constant * 'a, unit, 'csts) ContextualConversion.t
   ; init : Data.state -> Data.state
-  ; get : Data.state -> 'a ctx_field
   }
 
 (** Process the hypothetical context: for each hyp that corresponds to a context
