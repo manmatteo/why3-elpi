@@ -71,8 +71,8 @@ let read_output_tasks conv state output_term =
    the compiled program depend only on the transform (its [file] and argument
    [tys]), not on the individual task, so build them once per transform and
    reuse the result across the many tasks the transform is applied to. *)
-let program_cache
-    : (string, API.Compile.program * API.RawData.constant) Hashtbl.t =
+let program_cache :
+    (string, API.Compile.program * API.RawData.constant) Hashtbl.t =
   Hashtbl.create 16
 
 let get_program ~file ~tys =
