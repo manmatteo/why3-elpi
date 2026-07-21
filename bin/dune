@@ -7,3 +7,9 @@
  (link_flags -linkall)
  (modes (native plugin)))
  (env (dev (flags (:standard -warn-error -A))))
+
+;; (modes plugin) .cmxs targets aren't wired into @all/@default, so name it
+;; explicitly to make `dune build ./bin` (or `./plugins/elpi`) sufficient.
+(alias
+ (name default)
+ (deps why3_elpi_transformations.cmxs))
