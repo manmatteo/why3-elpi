@@ -12,7 +12,7 @@ depends: [
   "ocaml"
   "dune" {>= "3.15"}
   "why3"
-  "elpi"
+  "elpi" {>= "3.7.0"}
   "odoc" {with-doc}
 ]
 build: [
