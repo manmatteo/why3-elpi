@@ -1,6 +1,15 @@
 {
   inputs = {
-    opam-nix.url = "github:tweag/opam-nix";
+    # Pinned to a known-good rev; newer opam-nix trips an 'ocaml-config missing'
+    # overlay bug against recent opam-repository snapshots.
+    opam-nix.url = "github:tweag/opam-nix/ce332e6467a888fc4b67264282b728a8c1034cde";
+    # Pin the opam-repository snapshot ourselves so we control which package
+    # versions are visible (elpi 3.7 only landed 2026-04-15).
+    opam-repository = {
+      url = "github:ocaml/opam-repository";
+      flake = false;
+    };
+    opam-nix.inputs.opam-repository.follows = "opam-repository";
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.follows = "opam-nix/nixpkgs";
     treefmt.url = "github:numtide/treefmt-nix";
@@ -9,6 +18,7 @@
     self,
     flake-utils,
     opam-nix,
+    opam-repository,
     nixpkgs,
     treefmt,
   } @ inputs: let
@@ -29,7 +39,13 @@
         query =
           devPackagesQuery
           // {
-            ocaml-base-compiler = "*";
+            # 5.3.0: the newest compiler this opam-nix's build shim handles
+            # (5.4/5.5 trip an OPAMSWITCH unbound-variable error).
+            ocaml-base-compiler = "5.3.0";
+            # Recent opam-repository dropped ocaml-config from the default ocaml
+            # metapackage closure, but opam-nix's ocaml overlay still references
+            # it; request it explicitly so it stays in the resolved package set.
+            ocaml-config = "*";
             atdgen = "*";
             "atdgen-runtime" = "*";
           };

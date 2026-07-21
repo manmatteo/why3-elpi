@@ -22,7 +22,8 @@
   ocaml
   dune
   why3
-  elpi)
+  (elpi
+   (>= 3.7.0)))
  (allow_empty)
  (tags
   (topics "to describe" your project)))
