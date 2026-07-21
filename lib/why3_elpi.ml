@@ -66,33 +66,52 @@ let read_output_tasks conv state output_term =
      with Failure s -> Format.eprintf "elpi: %s@." s);
     raise exn
 
-let transform_query ~file ~tys ~embeds (t : Why3.Task.task) =
+(* Elpi 3.7 registers builtins in a process-global table keyed by [file_name]
+   and rejects declaring the same [file_name] twice. The declared builtins and
+   the compiled program depend only on the transform (its [file] and argument
+   [tys]), not on the individual task, so build them once per transform and
+   reuse the result across the many tasks the transform is applied to. *)
+let program_cache
+    : (string, API.Compile.program * API.RawData.constant) Hashtbl.t =
+  Hashtbl.create 16
+
+let get_program ~file ~tys =
   let base_ty = "list tdecl -> focused-goal -> list focused-task -> prop" in
   let ty = List.fold_right (Format.sprintf "%s -> %s") (List.rev tys) base_ty in
-  (* Format.printf "Registering transform with type %s\n%!" ty; *)
-  let w3_run_decl =
-    API.BuiltIn.LPCode (Printf.sprintf "external symbol %s : %s." "w3_run" ty)
-  in
-  let w3_run = API.RawData.Constants.declare_global_symbol "w3_run" in
   let file =
     let candidates = [ file; Filename.concat ".." file ] in
     match List.find_opt Sys.file_exists candidates with
     | Some path -> path
     | None -> file
   in
-  let builtins = declaration @ why3_builtin_declarations @ [ w3_run_decl ] in
-  document builtins;
-  let elpi =
-    API.Setup.init ?quotations:None
-      ~builtins:
-        [ API.BuiltIn.declare ~file_name:"builtins.elpi"
-            (builtins @ Builtin.std_declarations)
-        ]
-      ~file_resolver:(API.Parse.std_resolver ~paths:[ "." ] ())
-      ()
-  in
-  let ast = API.Parse.program ~elpi ~files:[ file ] in
-  let prog = API.Compile.program ~elpi [ ast ] in
+  (* The key doubles as the builtins [file_name], so it must be unique per
+     transform: two transforms with distinct signatures must not collide. *)
+  let key = Printf.sprintf "%s|%s" file ty in
+  match Hashtbl.find_opt program_cache key with
+  | Some cached -> cached
+  | None ->
+    let w3_run_decl =
+      API.BuiltIn.LPCode (Printf.sprintf "external symbol %s : %s." "w3_run" ty)
+    in
+    let w3_run = API.RawData.Constants.declare_global_symbol "w3_run" in
+    let builtins = declaration @ why3_builtin_declarations @ [ w3_run_decl ] in
+    let elpi =
+      API.Setup.init ?quotations:None
+        ~builtins:
+          [ API.BuiltIn.declare ~file_name:key
+              (builtins @ Builtin.std_declarations)
+          ]
+        ~file_resolver:(API.Parse.std_resolver ~paths:[ "." ] ())
+        ()
+    in
+    let ast = API.Parse.program ~elpi ~file in
+    let prog = API.Compile.program ~elpi ast in
+    let cached = (prog, w3_run) in
+    Hashtbl.add program_cache key cached;
+    cached
+
+let transform_query ~file ~tys ~embeds (t : Why3.Task.task) =
+  let prog, w3_run = get_program ~file ~tys in
   match split_focused_goal t with
   | None ->
     Why3.Loc.errorm "elpi: transform interface requires a task with a goal"

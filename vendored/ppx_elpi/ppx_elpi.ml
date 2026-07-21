@@ -513,7 +513,8 @@ let embed_branch (module B : Ast_builder.S) is_pred = function
 
 let embed (module B : Ast_builder.S) is_pred kl = let open B in
     [%expr fun ~depth: elpi__depth elpi__hyps elpi__constraints elpi__state ->
-      [%e pexp_function (List.map (embed_branch (module B) is_pred) kl) ]]
+      [%e pexp_function [] None
+            (Pfunction_cases (List.map (embed_branch (module B) is_pred) kl, loc, [])) ]]
 
 let readback_k (module B : Ast_builder.S) c mk_k t ts = let open B in
   let one all_kargs n p1 e1 t x kont =
@@ -641,9 +642,11 @@ let ctx_entry_key (module B : Ast_builder.S) kl = let open B in
       | _ -> assert false in
 
     case ~lhs:(pattern (List.map pvar pvl)) ~guard:None ~rhs:(find_key pvl arg_types) in
-  [%expr fun ~depth:_ -> [%e pexp_function (
-    List.map project (drop_skip kl) @
-    List.map (error_constructor_not_supported (module B)) (keep_skip kl)) ] ]
+  [%expr fun ~depth:_ -> [%e pexp_function [] None
+    (Pfunction_cases (
+      List.map project (drop_skip kl) @
+      List.map (error_constructor_not_supported (module B)) (keep_skip kl),
+      loc, [])) ] ]
 
 let is_ctx_entry (module B : Ast_builder.S) kl = let open B in
   [%expr fun elpi__h ->

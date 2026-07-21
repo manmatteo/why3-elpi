@@ -8,3 +8,5 @@ _opam/*
 coq-elpi-hoas
 .DS_Store
 .envrc
+result
+result-*
