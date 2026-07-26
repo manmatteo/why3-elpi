@@ -1,20 +1,127 @@
-% Simplified version of Why3's split_goal transform:
-% split only top-level conjunctions in the goal into independent subgoals.
+% Simplified version of Why3's split_goal transform: split conjunctions into
+% independent subgoals, descending into the conclusion of implications, and
+% under leading foralls/lets (but not under disjunctions, on the left of
+% implications, or under exists).
 
 w3_run Rest (goal-formula GoalPr Goal) Tasks :-
-  flatten-and Goal Terms,
+  split-formula Goal Terms,
   std.map Terms (g\ t\ t = focused-task Rest (goal-formula GoalPr g)) Tasks.
 
 w3_run Rest Goal [focused-task Rest Goal].
 
-% Dispatch on the total why3.as-and classifier: conjunctions are flattened,
-% any other formula is a leaf. some/none are disjoint patterns.
-func flatten-and term -> list term.
-flatten-and T Out :- why3.as-and T Conj, flatten-step T Conj Out.
+pred split-formula i:term, o:list term.
+% [@stop_split] on a formula (of any shape) means: stop here
+split-formula T [T] :-
+  why3.term-attrs T Attrs,
+  why3.has-attr Attrs "stop_split" tt.
 
-func flatten-step term, option (pair term term) -> list term.
-flatten-step _ (some (pr A B)) Out :-
-  flatten-and A LA,
-  flatten-and B LB,
+% Distribute triggers in case there are any
+split-formula (ttrigger Tr Body) Out :-
+  split-formula Body Bodies,
+  std.map Bodies (b\ b'\ b' = ttrigger Tr b) Out.
+
+% If the formula is `true`, discharge it immediately
+split-formula T [] :-
+  why3.strip T ttrue.
+
+split-formula T Out :-
+  why3.as-and T (some (pr A B)),
+  why3.term-attrs A Attrs,
+  why3.has-attr Attrs "asym_split" Asym,
+  split-and Asym A B Out.
+
+% [@asym_split] on the left conjunct (Why3's `A && B`, e.g. from `so`):
+% B is proved *assuming A*. Confirmed against the real transform's output
+% (grep for "0<=i /\ i<=i" in a real split_goal_right run on insertion_sort:
+% it always appears whole, e.g. `(0<=i /\ i<=i) -> ...`, never decomposed
+% into two separate hypotheses) that the real algorithm does NOT split the
+% hypothesis side here either, in right_only mode
+pred split-and i:bool, i:term, i:term, o:list term.
+% Tfalse is the zero of `/\`: `++`'s `Zero _, _ -> a` / `_, Zero _ -> b`
+% rule makes it absorb the whole conjunction into a single `false` goal,
+% discarding the other conjunct entirely -- checked ahead of the
+% asym-dependent clauses below since it applies regardless of asym_split.
+% Must NOT fire when the false operand also carries [@stop_split]: that
+% attribute is checked first in split_core, before Tfalse's own match arm,
+% so a `[@stop_split] false` is really just an ordinary atom for combining
+% purposes -- not the absorbing Zero. Missing this guard was a real bug,
+% found by comparing against a real split_goal_right run on pigeonhole.mlw:
+% an `assert`+`absurd` pattern compiles to `([@asym_split] P) && ([@stop_split]
+% false)`, and real produces `P` and `P -> false` (2 subgoals, treating
+% false as ordinary); the unguarded version collapsed this to just `false`,
+% silently discarding P.
+split-and _ A _ [F] :-
+  why3.strip A F, F = tfalse.
+  % why3.term-attrs A Attrs, why3.has-attr Attrs "stop_split" ff.
+split-and _ _ B [F] :-
+  why3.strip B F, F = tfalse.
+  % why3.term-attrs B Attrs, why3.has-attr Attrs "stop_split" ff.
+split-and tt A B Out :-
+  split-formula A LA,
+  split-formula B LB,
+  std.map LB (b\ b'\ b' = tbinop timplies A b) LB',
+  std.append LA LB' Out.
+split-and ff A B Out :-
+  split-formula A LA,
+  split-formula B LB,
   std.append LA LB Out.
-flatten-step T none [T].
+
+% `P -> false` is `not P`: Timplies's own bimap (`Comb ca, Zero t2 -> Comb
+% (cmap (f_0 t2) ca)` with f_0 = negation) rewrites the conclusion-is-false
+% case into the negated pieces of the antecedent, rather than leaving
+% `P -> false` as a (harder to discharge, differently-shaped) subgoal.
+% Checked before the general implies clause; falls through via why3.strip
+% failing when Q isn't false.
+split-formula T Out :-
+  why3.as-implies T (some (pr P Q)),
+  why3.strip Q tfalse,
+  % why3.term-attrs Q Attrs, why3.has-attr Attrs "stop_split" ff,
+  split-formula P LP,
+  std.map LP (p\ p'\ p' = tnot p) Out.
+
+split-formula T Out :-
+  why3.as-implies T (some (pr P Q)),
+  split-formula Q LQ,
+  std.map LQ (g\ g'\ g' = tbinop timplies P g) Out.
+
+split-formula T Out :-
+  why3.as-iff T (some (pr P Q)),
+  split-formula Q LQ,
+  split-formula P LP,
+  std.map LQ (q\ q'\ q' = tbinop timplies P q) LQ',
+  std.map LP (p\ p'\ p' = tbinop timplies Q p) LP',
+  std.append LQ' LP' Out.
+
+split-formula T Out :-
+  why3.as-forall T (some (pr V Bnd)),
+  (pi x\ ctx-vs x V => split-formula (Bnd x) (Bodies x)),
+  close-binder (h\ tquant tforall V h) Bodies Out.
+
+split-formula T Out :-
+  why3.as-let T (some (pr Def (pr V Bnd))),
+  (pi x\ ctx-vs x V => split-formula (Bnd x) (Bodies x)),
+  close-binder (h\ tlet Def V h) Bodies Out.
+
+split-formula T Out :-
+  why3.strip T (tif C Tthen Telse),
+  split-formula Tthen LT,
+  split-formula Telse LE,
+  std.map LT (t\ t'\ t' = tbinop timplies C t) LT',
+  std.map LE (e\ e'\ e' = tbinop timplies (tnot C) e) LE',
+  std.append LT' LE' Out.
+
+split-formula T [T]. % leaf: Tor, Tapp, ttrue, tfalse, Tnot, Tcase, Texists, ...
+
+% Efficiently close the bodies under a binder by instantiating the entire list,
+% and then pattern matching the abstracted head. Doing this at once would
+% require matching (x\ H x | T x) which triggers unification on all the
+% elements of the tail
+pred close-binder i:((term -> term) -> term), i:(term -> list term), o:list term.
+close-binder Close Bodies Out :-
+  pi x\ map-close Close x (Bodies x) Out.
+
+pred map-close i:((term -> term) -> term), i:term, i:list term, o:list term.
+map-close _ _ [] [].
+map-close Close X [E | Es] [Close Cl | Os] :-
+  Cl X = E,
+  map-close Close X Es Os.

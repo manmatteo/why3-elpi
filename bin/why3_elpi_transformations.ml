@@ -13,7 +13,7 @@ let entrypoint_transform_specs : (string * string * Why3.Pp.formatted) list =
     , "Run@ the@ ELPI@ intros-full-local@ example." )
   ; ( "elpi_split_goal_and"
     , "examples/split_goal_and.elpi"
-    , "Run@ the@ ELPI@ split-goal-and@ example." )
+    , "ELPI@ replacement@ for@ why3's@ built-in@ split_goal_right." )
   ; ( "elpi_drop_non_goal_props"
     , "examples/drop_non_goal_props.elpi"
     , "Run@ the@ ELPI@ drop-non-goal-props@ example." )
